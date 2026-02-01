@@ -13,8 +13,17 @@ const registerUser = async (name, email, password, lang, mode) => {
       preferred_language: lang,
       preferred_mode: mode,
     };
+
+
+
     const response = await api.post("/auth/register", body);
+
+    const token = response.data.token;
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(response.data.user));
+
     return response.data;
+
   } catch (error) {
     throw error.response ? error.response.data : new Error("Network Error");
   }
@@ -27,11 +36,28 @@ const loginUser = async (username, password) => {
       password: password,
     };
     const response = await api.post("/auth/login", body);
+    const token = response.data.token;
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(response.data.user));
     return response.data;
   } catch (error) {
     throw error.response ? error.response.data : new Error("Network Error");
   }
 };
+
+const logoutUser = async () => {
+  try {
+    
+    localStorage.removeItem("token");
+    localStorage.removeItem("user"); // if you stored user data
+
+    return { success: true };
+  } catch (error) {
+    throw error.response ? error.response.data : new Error("Network Error");
+  }
+};
+
+
 
 const getFriends = async () => {
   try {
@@ -70,4 +96,11 @@ const getMessages = async (friend_id) => {
     throw error.response ? error.response.data : new Error("Network Error");
   }
 }
-export { registerUser, loginUser, sendMessages ,getFriends, getMessages}
+export {
+  registerUser,
+  loginUser,
+  sendMessages,
+  getFriends,
+  getMessages,
+  logoutUser,
+};

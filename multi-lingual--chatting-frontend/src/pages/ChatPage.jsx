@@ -23,17 +23,31 @@ const ChatPage = () => {
     fetchFriends();
   }, []);
 
-  async function fetchMessages(friendId) {
+  // Helper to fetch messages without setting friendId (used for polling/refresh)
+  const refreshMessages = async (currentFriendId) => {
     try {
-      setFriendId(friendId);
-      const response = await getMessages(friendId);
-      console.log("Fetched messages:", response); // Check console to see the real structure
+      const response = await getMessages(currentFriendId);
       // Handle 'message', 'messages', or if response itself is the array
       setMessages(response.message || response.messages || []);
     } catch (error) {
       console.error("Error fetching messages:", error);
     }
-  }
+  };
+
+  // Polling for new messages every 2 seconds
+  useEffect(() => {
+    let interval;
+    if (friendId) {
+      interval = setInterval(() => refreshMessages(friendId), 2000);
+    }
+    return () => clearInterval(interval);
+  }, [friendId]);
+
+  // Handler for selecting a friend
+  const handleFriendSelect = async (id) => {
+    setFriendId(id);
+    await refreshMessages(id);
+  };
 
   return (
     <div className="flex h-[calc(100vh-4rem)] w-full bg-gray-100 overflow-hidden">
@@ -44,7 +58,7 @@ const ChatPage = () => {
           friends={friends}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-          fetchMessages={fetchMessages}
+          fetchMessages={handleFriendSelect}
         />
       </div>
 
@@ -56,6 +70,7 @@ const ChatPage = () => {
             messages={messages}
             friendId={friendId}
             onBack={() => setFriendId(null)}
+            refreshMessages={() => refreshMessages(friendId)}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-400 flex-col gap-4">

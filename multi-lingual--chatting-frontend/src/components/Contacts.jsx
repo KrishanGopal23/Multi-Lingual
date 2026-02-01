@@ -1,6 +1,12 @@
 import React from "react";
 
-const Contacts = ({ friends, searchQuery, setSearchQuery, fetchMessages }) => {
+const Contacts = ({
+  friends,
+  searchQuery,
+  setSearchQuery,
+  fetchMessages,
+  currentFriendId,
+}) => {
   // const [friends, setFriends] = useState([]);
   // const [searchQuery, setSearchQuery] = useState("");
 
@@ -56,7 +62,11 @@ const Contacts = ({ friends, searchQuery, setSearchQuery, fetchMessages }) => {
           filteredFriends.map((friend) => (
             <li
               key={friend._id}
-              className="flex items-center gap-4 p-3 rounded-xl hover:bg-blue-50 cursor-pointer transition-all duration-200 group"
+              className={`flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-all duration-200 group ${
+                currentFriendId === friend._id
+                  ? "bg-blue-100 border-l-4 border-blue-500 shadow-sm"
+                  : "hover:bg-gray-50 border-l-4 border-transparent"
+              }`}
               onClick={() => fetchMessages(friend._id)}
             >
               <div className="w-12 h-12 shrink-0 rounded-full bg-linear-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-sm group-hover:shadow-md group-hover:scale-105 transition-all">

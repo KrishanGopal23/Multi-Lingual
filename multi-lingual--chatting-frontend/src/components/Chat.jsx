@@ -1,8 +1,8 @@
 import React from "react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { sendMessages } from "../services/api";
 
-const Chat = ({ messages, friendId, onBack }) => {
+const Chat = ({ messages, friendId, onBack, refreshMessages }) => {
   const [message, setMessage] = useState("");
 
   async function sendMessagesHandler() {
@@ -11,11 +11,22 @@ const Chat = ({ messages, friendId, onBack }) => {
         return;
       }
       await sendMessages(message, friendId);
+      refreshMessages();
       setMessage("");
     } catch (error) {
       console.log(error);
     }
   }
+
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   return (
     <div className="w-full h-full flex flex-col bg-[#f0f2f5]">
@@ -95,10 +106,10 @@ const Chat = ({ messages, friendId, onBack }) => {
               return (
                 <li
                   key={message._id}
-                  className={`max-w-[75%] md:max-w-[60%] p-3 rounded-2xl shadow-sm relative ${
+                  className={`max-w-[85%] md:max-w-[65%] p-3 rounded-2xl shadow-md relative text-sm md:text-base ${
                     isIncoming
-                      ? "self-start bg-white text-gray-800 rounded-tl-none"
-                      : "self-end bg-blue-600 text-white rounded-tr-none"
+                      ? "self-start bg-white text-gray-800 rounded-tl-none border border-gray-100"
+                      : "self-end bg-linear-to-br from-blue-500 to-blue-600 text-white rounded-tr-none"
                   }`}
                 >
                   <p className="text-sm md:text-base leading-relaxed">
@@ -123,6 +134,7 @@ const Chat = ({ messages, friendId, onBack }) => {
               <p className="text-sm">Say hello!</p>
             </div>
           )}
+          <div ref={messagesEndRef}></div>
         </ul>
       </div>
 
