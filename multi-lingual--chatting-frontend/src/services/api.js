@@ -14,8 +14,6 @@ const registerUser = async (name, email, password, lang, mode) => {
       preferred_mode: mode,
     };
 
-
-
     const response = await api.post("/auth/register", body);
 
     const token = response.data.token;
@@ -23,7 +21,6 @@ const registerUser = async (name, email, password, lang, mode) => {
     localStorage.setItem("user", JSON.stringify(response.data.user));
 
     return response.data;
-
   } catch (error) {
     throw error.response ? error.response.data : new Error("Network Error");
   }
@@ -47,7 +44,6 @@ const loginUser = async (username, password) => {
 
 const logoutUser = async () => {
   try {
-    
     localStorage.removeItem("token");
     localStorage.removeItem("user"); // if you stored user data
 
@@ -57,7 +53,29 @@ const logoutUser = async () => {
   }
 };
 
+const getUsers = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    const response = await api.get("/user/users");
+    return response.data;
+  } catch (error) {
+    throw error.response ? error.response.data : new Error("Network Error");
+  }
+}
 
+const addFriend = async (friend_id) => {
+  try {
+
+    const token = localStorage.getItem("token");
+    api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    const response = await api.post(`/user/add/${friend_id}`);
+    return response.data;
+
+  } catch (error) {
+    throw error.response ? error.response.data : new Error("Network Error");
+  }
+};
 
 const getFriends = async () => {
   try {
@@ -68,9 +86,8 @@ const getFriends = async () => {
     return response.data;
   } catch (error) {
     throw error.response ? error.response.data : new Error("Network Error");
-
   }
-}
+};
 
 const sendMessages = async (message, friend_id) => {
   try {
@@ -95,7 +112,7 @@ const getMessages = async (friend_id) => {
   } catch (error) {
     throw error.response ? error.response.data : new Error("Network Error");
   }
-}
+};
 export {
   registerUser,
   loginUser,
@@ -103,4 +120,6 @@ export {
   getFriends,
   getMessages,
   logoutUser,
+  addFriend,
+  getUsers,
 };

@@ -14,6 +14,30 @@ const welcome = async (req, res) => {
     }
 }
 
+const getUsers = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // get logged-in user with friends
+    const currentUser = await User.findById(userId).select("friends");
+
+    // exclude:
+    // 1. logged-in user
+    // 2. user's friends
+    const users = await User.find({
+      _id: {
+        $ne: userId,
+        $nin: currentUser.friends
+      }
+    }).select("_id name");
+
+    res.status(200).json({ users });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
 const addFriends = async (req, res) => {
     try {
 
@@ -51,7 +75,7 @@ const getFriends = async (req, res) => {
 
         const user_id = req.user._id.toString();
 
-        const user = await User.findById(user_id).populate("friends", "name email");
+        const user = await User.findById(user_id).populate("friends", "name ");
 
         if (!user) {
             return res.status(404).json({ message: "User not found" });
@@ -68,4 +92,4 @@ const getFriends = async (req, res) => {
 }
 
 
-export {welcome, addFriends, getFriends};
+export {welcome,getUsers, addFriends, getFriends};

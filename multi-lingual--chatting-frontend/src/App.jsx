@@ -6,6 +6,7 @@ import RegisterPage from "./pages/RegisterPage";
 import Navbar from "./components/Navbar.jsx";
 import Home from "./pages/Home.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import AddFriends from "./pages/AddFriends.jsx";
 
 const App = () => {
   return (
@@ -21,6 +22,15 @@ const App = () => {
           element={
             <ProtectedRoute>
               <ChatPage />
+            </ProtectedRoute>
+          }
+        ></Route>
+
+        <Route
+          path="/addfriends"
+          element={
+            <ProtectedRoute>
+              <AddFriends />
             </ProtectedRoute>
           }
         ></Route>
