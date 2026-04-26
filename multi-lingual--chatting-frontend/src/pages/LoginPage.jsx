@@ -1,64 +1,131 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
 import { loginUser } from "../services/api";
 
 const LoginPage = () => {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
+  const [errorMessage, setErrorMessage] = useState("");
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setErrorMessage("");
+
     try {
-      const response = await loginUser(username, password);
-      console.log(response);
-      setUsername("");
+      await loginUser(email, password);
+      setEmail("");
       setPassword("");
       navigate("/Chat");
-      localStorage.setItem("token", response.token);
     } catch (error) {
       console.error("Login failed:", error);
+      setErrorMessage(error.message || "Unable to log in with those details.");
     }
   };
 
   return (
-    <div className="bg-linear-to-br from-blue-100 to-indigo-200 flex justify-center items-center h-[90vh] p-4">
-      <div className="flex justify-center items-center flex-col w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 space-y-6">
-        <h1 className="font-extrabold text-3xl text-gray-800">Login</h1>
-        <form action="/hello" className="flex flex-col w-full space-y-4">
-          <input
-            type="text"
-            placeholder="username"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-          <input
-            type="password"
-            placeholder="password"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <button
-            type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5"
-            onClick={handleSubmit}
-          >
-            Login
-          </button>
-        </form>
-        <div className="text-center text-sm text-gray-600">
-          <span>Don't have an account? </span>
-          <Link
-            to="/register"
-            className="text-blue-600 hover:text-blue-800 font-semibold hover:underline"
-          >
-            Register
-          </Link>
-        </div>
+    <div className="relative overflow-hidden px-4 py-8 sm:px-6 lg:px-8">
+      <div className="absolute left-0 top-10 -z-10 h-64 w-64 rounded-full bg-[#d7b06f]/20 blur-3xl" />
+      <div className="absolute bottom-0 right-0 -z-10 h-80 w-80 rounded-full bg-[#1f4f46]/10 blur-3xl" />
+
+      <div className="mx-auto grid max-w-6xl items-center gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:py-8">
+        <section className="hidden rounded-[2rem] border border-white/70 bg-[#fffdf9]/90 p-8 shadow-2xl shadow-slate-300/35 backdrop-blur lg:block">
+          <p className="text-sm font-bold uppercase tracking-[0.28em] text-[#8a6b38]">
+            Welcome back
+          </p>
+          <h1 className="mt-4 text-4xl font-extrabold leading-tight text-slate-900">
+            Continue conversations without language friction.
+          </h1>
+          <p className="mt-4 text-base leading-7 text-slate-600">
+            Keep your original view while friends receive translated text or
+            audio.
+          </p>
+
+          <div className="mt-8 grid gap-4">
+            {[
+              "Speak or type freely",
+              "Automatic audio playback",
+              "Clean sender vs receiver views",
+            ].map((item) => (
+              <div
+                key={item}
+                className="flex items-center gap-3 rounded-2xl bg-[#f6efe2] px-4 py-4 text-sm font-semibold text-slate-700"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1f4f46] text-white">
+                  OK
+                </span>
+                {item}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-[2rem] border border-white/70 bg-white/90 p-8 shadow-2xl shadow-slate-300/30 backdrop-blur sm:p-10">
+          <div className="mb-8">
+            <p className="text-sm font-bold uppercase tracking-[0.28em] text-[#8a6b38]">
+              Log In
+            </p>
+            <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
+              Log in to your workspace
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-slate-600">
+              Send originals, deliver translations.
+            </p>
+          </div>
+
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Email
+              </label>
+              <input
+                type="email"
+                placeholder="you@example.com"
+                className="w-full rounded-2xl border border-slate-200 bg-[#fcfaf5] px-4 py-3.5 text-slate-800 outline-none transition-all focus:border-[#1f4f46]/30 focus:ring-4 focus:ring-[#1f4f46]/10"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Password
+              </label>
+              <input
+                type="password"
+                placeholder="Enter your password"
+                className="w-full rounded-2xl border border-slate-200 bg-[#fcfaf5] px-4 py-3.5 text-slate-800 outline-none transition-all focus:border-[#1f4f46]/30 focus:ring-4 focus:ring-[#1f4f46]/10"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+            </div>
+
+            {errorMessage && (
+              <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+                {errorMessage}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full rounded-2xl bg-[#1f4f46] px-4 py-3.5 text-sm font-semibold text-white shadow-xl shadow-[#1f4f46]/20 transition-all hover:-translate-y-0.5 hover:bg-[#173d37]"
+            >
+              Log In
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-slate-600">
+            Don&apos;t have an account?{" "}
+            <Link
+              to="/register"
+              className="font-semibold text-[#1f4f46] transition-colors hover:text-[#173d37]"
+            >
+              Create one
+            </Link>
+          </p>
+        </section>
       </div>
     </div>
   );

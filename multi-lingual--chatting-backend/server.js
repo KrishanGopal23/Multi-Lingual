@@ -13,7 +13,7 @@ app.use(cors());
 dotenv.config();
 connectDB();
 
-app.use(express.json());
+app.use(express.json({ limit: "25mb" }));
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
@@ -30,6 +30,10 @@ app.use("/mlc/user/", user);
 // chat
 import chat from "./modules/chat/chatRoutes.js";
 app.use("/mlc/chat/", chat);
+
+// speech
+import speech from "./modules/speech/speechRoutes.js";
+app.use("/mlc/speech/", speech);
 
 const PORT = process.env.PORT || 5000;
 

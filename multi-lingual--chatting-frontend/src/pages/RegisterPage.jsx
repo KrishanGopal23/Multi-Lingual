@@ -1,8 +1,9 @@
-import React from "react";
-import { Link } from "react-router-dom";
-import { useState } from "react";
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../services/api";
-import { useNavigate } from "react-router-dom";
+import { LANGUAGE_OPTIONS } from "../services/languageSupport";
+
+const MODE_OPTIONS = ["Text", "Audio", "None"];
 
 const RegisterPage = () => {
   const [name, setName] = useState("");
@@ -10,146 +11,190 @@ const RegisterPage = () => {
   const [password, setPassword] = useState("");
   const [lang, setLang] = useState("en");
   const [mode, setMode] = useState("Text");
-
+  const [errorMessage, setErrorMessage] = useState("");
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setErrorMessage("");
+
     try {
-      const response = await registerUser(name, username, password, lang, mode);
+      await registerUser(name, username, password, lang, mode);
       setName("");
       setUsername("");
       setPassword("");
       setLang("en");
-      setMode("text");
+      setMode("Text");
       navigate("/Chat");
-      console.log(response);
     } catch (error) {
       console.error("Registration failed:", error);
+      setErrorMessage(error.message || "Unable to create the account.");
     }
   };
 
   return (
-    <div className=" h-10/11 bg-linear-to-br from-blue-100 to-blue-300 flex justify-center items-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-6">
-        <div className="text-center">
-          <h1 className="font-extrabold text-3xl text-gray-800">
-            Create Account
+    <div className="relative overflow-hidden px-4 py-8 sm:px-6 lg:px-8">
+      <div className="absolute left-0 top-10 -z-10 h-64 w-64 rounded-full bg-[#1f4f46]/12 blur-3xl" />
+      <div className="absolute bottom-0 right-0 -z-10 h-80 w-80 rounded-full bg-[#d7b06f]/20 blur-3xl" />
+
+      <div className="mx-auto grid max-w-6xl items-center gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:py-8">
+        <section className="hidden rounded-[2rem] border border-white/70 bg-[#fffdf9]/90 p-8 shadow-2xl shadow-slate-300/35 backdrop-blur lg:block">
+          <p className="text-sm font-bold uppercase tracking-[0.28em] text-[#8a6b38]">
+            Create your workspace
+          </p>
+          <h1 className="mt-4 text-4xl font-extrabold leading-tight text-slate-900">
+            Set your language once. We handle the rest.
           </h1>
-          <p className="text-gray-500 mt-2">Sign up to get started</p>
-        </div>
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Name
-            </label>
-            <input
-              type="text"
-              placeholder="krishan"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
+          <p className="mt-4 text-base leading-7 text-slate-600">
+            Keep your original view while friends receive translations in their
+            preferred format.
+          </p>
+
+          <div className="mt-8 space-y-4">
+            {[
+              {
+                title: "Original stays yours",
+                copy: "Your view keeps the exact words you sent.",
+              },
+              {
+                title: "Translated for them",
+                copy: "Contacts receive the translated message automatically.",
+              },
+              {
+                title: "Audio optional",
+                copy: "Play translated audio when they prefer listening.",
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="rounded-2xl bg-[#f6efe2] px-5 py-4 shadow-sm"
+              >
+                <p className="text-sm font-bold text-slate-900">{item.title}</p>
+                <p className="mt-2 text-sm leading-7 text-slate-600">
+                  {item.copy}
+                </p>
+              </div>
+            ))}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
-            <input
-              type="text"
-              placeholder="jkrishan@gmail.com"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+        </section>
+
+        <section className="rounded-[2rem] border border-white/70 bg-white/90 p-8 shadow-2xl shadow-slate-300/30 backdrop-blur sm:p-10">
+          <div className="mb-8">
+            <p className="text-sm font-bold uppercase tracking-[0.28em] text-[#8a6b38]">
+              Sign Up
+            </p>
+            <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
+              Create your account
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-slate-600">
+              Choose your language and delivery mode.
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Language
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Name
               </label>
-              <select
-                value={lang}
-                onChange={(e) => setLang(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
-              >
-                <option value="en">English</option>
-                <option value="hi">Hindi</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-                <option value="it">Italian</option>
-                <option value="de">German</option>
-                <option value="ja">Japanese</option>
-                <option value="ko">Korean</option>
-                <option value="ru">Russian</option>
-                <option value="zh-CN">Simplified Chinese</option>
-                <option value="zh-TW">Traditional Chinese</option>
-                <option value="ar">Arabic</option>
-                <option value="bn">Bangla</option>
-                <option value="te">Telugu</option>
-                <option value="sa">Sanskrit</option>
-                <option value="mr">Marathi</option>
-                <option value="ta">Tamil</option>
-                <option value="gu">Gujarati</option>
-                <option value="kn">Kannada</option>
-                <option value="ml">Malayalam</option>
-                <option value="or">Odia</option>
-                <option value="pa">Punjabi</option>
-                <option value="as">Assamese</option>
-                <option value="ne">Nepali</option>
-                <option value="ur">Urdu</option>
-                <option value="bho">Bhojpuri</option>
-              </select>
+              <input
+                type="text"
+                placeholder="Krishan"
+                className="w-full rounded-2xl border border-slate-200 bg-[#fcfaf5] px-4 py-3.5 text-slate-800 outline-none transition-all focus:border-[#1f4f46]/30 focus:ring-4 focus:ring-[#1f4f46]/10"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Mode
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Email
               </label>
-              <select
-                value={mode}
-                name="mode"
-                onChange={(e) => setMode(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
-              >
-                <option value="Text">Text</option>
-                <option value="Audio">Audio</option>
-                <option value="None">None</option>
-              </select>
+              <input
+                type="email"
+                placeholder="you@example.com"
+                className="w-full rounded-2xl border border-slate-200 bg-[#fcfaf5] px-4 py-3.5 text-slate-800 outline-none transition-all focus:border-[#1f4f46]/30 focus:ring-4 focus:ring-[#1f4f46]/10"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                required
+              />
             </div>
-          </div>
-          <button
-            type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5"
-          >
-            Register
-          </button>
-        </form>
-        <div className="text-center text-sm text-gray-600">
-          <span>Already have an account? </span>
-          <Link
-            to="/login"
-            className="text-blue-600 hover:text-blue-800 font-semibold hover:underline"
-          >
-            Login
-          </Link>
-        </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Password
+              </label>
+              <input
+                type="password"
+                placeholder="Choose a secure password"
+                className="w-full rounded-2xl border border-slate-200 bg-[#fcfaf5] px-4 py-3.5 text-slate-800 outline-none transition-all focus:border-[#1f4f46]/30 focus:ring-4 focus:ring-[#1f4f46]/10"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+            </div>
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Preferred Language
+                </label>
+                <select
+                  value={lang}
+                  onChange={(event) => setLang(event.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-[#fcfaf5] px-4 py-3.5 text-slate-800 outline-none transition-all focus:border-[#1f4f46]/30 focus:ring-4 focus:ring-[#1f4f46]/10"
+                >
+                  {LANGUAGE_OPTIONS.map((language) => (
+                    <option key={language.code} value={language.code}>
+                      {language.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Incoming Delivery
+                </label>
+                <select
+                  value={mode}
+                  name="mode"
+                  onChange={(event) => setMode(event.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-[#fcfaf5] px-4 py-3.5 text-slate-800 outline-none transition-all focus:border-[#1f4f46]/30 focus:ring-4 focus:ring-[#1f4f46]/10"
+                >
+                  {MODE_OPTIONS.map((modeOption) => (
+                    <option key={modeOption} value={modeOption}>
+                      {modeOption}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {errorMessage && (
+              <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+                {errorMessage}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full rounded-2xl bg-[#c98a32] px-4 py-3.5 text-sm font-semibold text-white shadow-xl shadow-[#c98a32]/25 transition-all hover:-translate-y-0.5 hover:bg-[#b97b24]"
+            >
+              Create Account
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-slate-600">
+            Already have an account?{" "}
+            <Link
+              to="/login"
+              className="font-semibold text-[#1f4f46] transition-colors hover:text-[#173d37]"
+            >
+              Log in
+            </Link>
+          </p>
+        </section>
       </div>
     </div>
   );

@@ -44,6 +44,8 @@ export const register = async (req, res) => {
         id: newUser._id,
         name: newUser.name,
         email: newUser.email,
+        preferred_language: newUser.preferred_language,
+        preferred_mode: newUser.preferred_mode,
       },
     });
   } catch (error) {
@@ -81,6 +83,8 @@ export const login = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        preferred_language: user.preferred_language,
+        preferred_mode: user.preferred_mode,
       },
     });
   } catch (error) {

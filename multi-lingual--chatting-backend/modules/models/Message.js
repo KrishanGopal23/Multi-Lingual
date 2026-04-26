@@ -19,6 +19,19 @@ const messageSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    input_mode: {
+        type: String,
+        enum: ["Text", "Audio"],
+        default: "Text",
+    },
+    sender_language: {
+        type: String,
+        default: "en",
+    },
+    receiver_language: {
+        type: String,
+        default: "en",
+    },
     timestamp: {
         type: Date,
         default: Date.now,

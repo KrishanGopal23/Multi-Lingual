@@ -1,16 +1,28 @@
-import express from "express";
 import { User } from "../models/User.js";
 
 
-const welcome = async (req, res) => {
+const getProfile = async (req, res) => {
 
     try {
         const user_id = req.user._id.toString();
         const user = await User.findById(user_id.toString());
-        res.json({ message: "Welcome api is working fine" })
+
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json({
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            preferred_language: user.preferred_language,
+            preferred_mode: user.preferred_mode,
+          },
+        });
 
     } catch (error) {
-        res.send(error);
+        res.status(500).json({ message: error.message });
     }
 }
 
@@ -29,7 +41,7 @@ const getUsers = async (req, res) => {
         $ne: userId,
         $nin: currentUser.friends
       }
-    }).select("_id name");
+    }).select("_id name preferred_language preferred_mode");
 
     res.status(200).json({ users });
   } catch (error) {
@@ -75,15 +87,15 @@ const getFriends = async (req, res) => {
 
         const user_id = req.user._id.toString();
 
-        const user = await User.findById(user_id).populate("friends", "name ");
+        const user = await User.findById(user_id).populate(
+          "friends",
+          "name preferred_language preferred_mode"
+        );
 
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
 
-        if (user.friends.length === 0) {
-            return res.status(404).json({ message: "No friends found" });
-        }
         return res.status(200).json({user_friends: user.friends})
 
     } catch (error) {
@@ -92,4 +104,4 @@ const getFriends = async (req, res) => {
 }
 
 
-export {welcome,getUsers, addFriends, getFriends};
+export { getProfile, getUsers, addFriends, getFriends };
