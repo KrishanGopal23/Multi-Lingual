@@ -3,17 +3,42 @@ import dotenv from "dotenv";
 import connectDB from "./modules/config/db.js";
 import mongoose from "mongoose";
 import cors from "cors";
+import path from "path";
+import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 
 
 // app initialization
 const app = express();
 
-app.use(cors());
+const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:5173";
+
+app.use(
+  cors({
+    origin: allowedOrigin,
+    credentials: true,
+  }),
+);
+
+app.use(helmet());
+app.use(cookieParser());
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use("/mlc", apiLimiter);
 
 dotenv.config();
 connectDB();
 
 app.use(express.json({ limit: "25mb" }));
+
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.get("/", (req, res) => {
   res.send("Hello World!");

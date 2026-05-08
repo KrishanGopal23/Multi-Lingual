@@ -7,10 +7,11 @@ import Navbar from "./components/Navbar.jsx";
 import Home from "./pages/Home.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import AddFriends from "./pages/AddFriends.jsx";
+import Settings from "./pages/Settings.jsx";
 
 const App = () => {
   return (
-    <div className="h-screen">
+    <div className="min-h-screen">
       <Navbar />
       <Routes>
         <Route path="/" element={<Home />}></Route>
@@ -31,6 +32,15 @@ const App = () => {
           element={
             <ProtectedRoute>
               <AddFriends />
+            </ProtectedRoute>
+          }
+        ></Route>
+
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
             </ProtectedRoute>
           }
         ></Route>

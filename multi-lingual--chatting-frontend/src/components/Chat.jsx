@@ -1,5 +1,16 @@
-import React, { useEffect, useRef, useState } from "react";
-import { sendMessages } from "../services/api";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  deleteMessage,
+  editMessage,
+  forwardMessage,
+  getPresence,
+  getTypingStatus,
+  markMessagesRead,
+  reactToMessage,
+  sendMediaMessage,
+  sendMessages,
+  setTypingStatus,
+} from "../services/api";
 import {
   getLanguageLabel,
   getModeLabel,
@@ -33,6 +44,35 @@ const getInitials = (name = "U") =>
     .slice(0, 2)
     .toUpperCase();
 
+const QUEUE_STORAGE_KEY = "mlc_pending_queue";
+
+const readQueuedMessagesFromStorage = () => {
+  if (typeof localStorage === "undefined") {
+    return [];
+  }
+
+  try {
+    const stored = localStorage.getItem(QUEUE_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeQueuedMessagesToStorage = (queue) => {
+  localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
+};
+
+const readPreferencesUpdatedAt = () => {
+  if (typeof localStorage === "undefined") {
+    return 0;
+  }
+
+  const stored = localStorage.getItem("mlc_preferences_updated_at");
+  const parsed = Number(stored);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const Chat = ({
   messages,
   friendId,
@@ -46,13 +86,30 @@ const Chat = ({
   const [speechError, setSpeechError] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [pendingMessages, setPendingMessages] = useState([]);
   const [activePlaybackId, setActivePlaybackId] = useState(null);
+  const [presenceInfo, setPresenceInfo] = useState({
+    isOnline: false,
+    lastSeen: null,
+  });
+  const [isFriendTyping, setIsFriendTyping] = useState(false);
+  const [replyToMessage, setReplyToMessage] = useState(null);
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [openReactionFor, setOpenReactionFor] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [isChatMuted, setIsChatMuted] = useState(false);
+  const [, setOfflineQueue] = useState(readQueuedMessagesFromStorage);
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const selectedFilesRef = useRef([]);
   const recognitionRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const spokenMessageIdsRef = useRef(new Set());
   const hasInitializedConversationRef = useRef(false);
+  const typingTimeoutRef = useRef(null);
+  const preferencesUpdatedAt = useMemo(() => readPreferencesUpdatedAt(), []);
 
   const preferredLanguage = currentUserProfile?.preferred_language || "en";
   const preferredMode = currentUserProfile?.preferred_mode || "Text";
@@ -69,6 +126,93 @@ const Chat = ({
   const receiverLanguageLabel = getLanguageLabel(friendLanguage);
   const incomingModeLabel = getModeLabel(preferredMode);
   const outgoingModeLabel = getModeLabel(friendMode);
+  const currentUserId = currentUserProfile?._id || currentUserProfile?.id || "me";
+  const quickReactions = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+  const displayMessages = [
+    ...messages,
+    ...pendingMessages.filter(
+      (item) => item.receiver?.toString() === friendId?.toString(),
+    ),
+  ].sort((a, b) => {
+    const aTime = new Date(a.timestamp || a.createdAt || 0).getTime();
+    const bTime = new Date(b.timestamp || b.createdAt || 0).getTime();
+    return aTime - bTime;
+  });
+
+  const searchableMessages = displayMessages;
+
+  const loadQueue = useCallback(readQueuedMessagesFromStorage, []);
+
+  const enqueueMessage = useCallback((queuedMessage) => {
+    setOfflineQueue((current) => {
+      const next = [...current, queuedMessage];
+      writeQueuedMessagesToStorage(next);
+      return next;
+    });
+  }, []);
+
+  const removeFromQueue = useCallback((clientId) => {
+    setOfflineQueue((current) => {
+      const next = current.filter((item) => item.client_id !== clientId);
+      writeQueuedMessagesToStorage(next);
+      return next;
+    });
+  }, []);
+
+  const processQueue = useCallback(async () => {
+    if (isProcessingQueue || !navigator.onLine) {
+      return;
+    }
+
+    setIsProcessingQueue(true);
+
+    try {
+      const queue = loadQueue();
+
+      for (const item of queue) {
+        try {
+          await sendMessages(
+            item.message,
+            item.friend_id,
+            item.input_mode,
+            item.reply_to,
+          );
+          removeFromQueue(item.client_id);
+          setPendingMessages((current) =>
+            current.filter((pending) => pending.client_id !== item.client_id),
+          );
+        } catch {
+          setPendingMessages((current) =>
+            current.map((pending) =>
+              pending.client_id === item.client_id
+                ? { ...pending, status: "failed" }
+                : pending,
+            ),
+          );
+        }
+      }
+
+      if (queue.length > 0) {
+        await refreshMessages();
+      }
+    } finally {
+      setIsProcessingQueue(false);
+    }
+  }, [isProcessingQueue, loadQueue, refreshMessages, removeFromQueue]);
+
+  const registerBackgroundSync = async () => {
+    if (!("serviceWorker" in navigator) || !("SyncManager" in window)) {
+      return;
+    }
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.sync.register("mlc-sync");
+    } catch (error) {
+      console.error("Background sync registration failed:", error);
+    }
+  };
 
   const cleanupMediaStream = () => {
     if (mediaStreamRef.current) {
@@ -123,6 +267,9 @@ const Chat = ({
     text = message,
     inputMode = "Text",
     clearTextInput = true,
+    pendingId = null,
+    replyTo = null,
+    replyPreview = null,
   } = {}) => {
     const trimmedMessage = text.trim();
 
@@ -130,27 +277,260 @@ const Chat = ({
       return;
     }
 
-    setIsSending(true);
-    setSpeechError("");
+    if (!navigator.onLine) {
+      const offlineId = `offline-${Date.now()}-${Math.random()
+        .toString(16)
+        .slice(2)}`;
 
-    try {
-      await sendMessages(trimmedMessage, friendId, inputMode);
-      await refreshMessages();
+      enqueueMessage({
+        client_id: offlineId,
+        friend_id: friendId,
+        message: trimmedMessage,
+        input_mode: inputMode,
+        reply_to: replyTo,
+      });
+
+      setPendingMessages((current) => [
+        ...current,
+        {
+          client_id: offlineId,
+          sendar: currentUserProfile?._id || "me",
+          receiver: friendId,
+          original_message: trimmedMessage,
+          translated_message: "",
+          input_mode: inputMode,
+          sender_language: preferredLanguage,
+          receiver_language: friendLanguage,
+          reply_to: replyTo,
+          reply_preview: replyPreview,
+          status: "queued",
+          timestamp: new Date().toISOString(),
+          isLocal: true,
+        },
+      ]);
 
       if (clearTextInput) {
         setMessage("");
       }
 
+      setReplyToMessage(null);
+      setSpeechError("You are offline. Message queued.");
+      registerBackgroundSync();
+      return;
+    }
+
+    setIsSending(true);
+    setSpeechError("");
+
+    const nextPendingId =
+      pendingId ||
+      `pending-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+    if (!pendingId) {
+      setPendingMessages((current) => [
+        ...current,
+        {
+          client_id: nextPendingId,
+          sendar: currentUserProfile?._id || "me",
+          receiver: friendId,
+          original_message: trimmedMessage,
+          translated_message: "",
+          input_mode: inputMode,
+          sender_language: preferredLanguage,
+          receiver_language: friendLanguage,
+          reply_to: replyTo,
+          reply_preview: replyPreview,
+          status: "sending",
+          timestamp: new Date().toISOString(),
+          isLocal: true,
+        },
+      ]);
+    }
+
+    if (clearTextInput) {
+      setMessage("");
+    }
+
+    try {
+      await sendMessages(trimmedMessage, friendId, inputMode, replyTo);
+      await refreshMessages();
+
+      setPendingMessages((current) =>
+        current.filter((item) => item.client_id !== nextPendingId),
+      );
+
       setVoicePreview("");
+      setReplyToMessage(null);
+      if (friendId) {
+        setTypingStatus(friendId, false).catch((error) => {
+          console.error("Failed to clear typing status:", error);
+        });
+      }
     } catch (error) {
       console.log(error);
       setSpeechError(error.message || "Unable to send your message.");
+
+      setPendingMessages((current) =>
+        current.map((item) =>
+          item.client_id === nextPendingId
+            ? { ...item, status: "failed" }
+            : item,
+        ),
+      );
 
       if (inputMode === "Audio") {
         setMessage(trimmedMessage);
       }
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const sendMediaHandler = async () => {
+    if (!friendId || isSending) {
+      return;
+    }
+
+    if (!navigator.onLine) {
+      setSpeechError("You are offline. Media cannot be queued yet.");
+      return;
+    }
+
+    if (selectedFiles.length === 0 && !message.trim()) {
+      return;
+    }
+
+    setIsSending(true);
+    setSpeechError("");
+
+    try {
+      await sendMediaMessage(
+        friendId,
+        selectedFiles.map((item) => item.file),
+        message.trim(),
+        replyToMessage?.id || null,
+      );
+      await refreshMessages();
+      selectedFiles.forEach((item) => URL.revokeObjectURL(item.preview));
+      setSelectedFiles([]);
+      setMessage("");
+      setReplyToMessage(null);
+    } catch (error) {
+      setSpeechError(error.message || "Unable to send media.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const retryPendingMessage = async (pendingMessage) => {
+    if (!pendingMessage || isSending) {
+      return;
+    }
+
+    if (!navigator.onLine) {
+      setSpeechError("You are offline. Message queued.");
+      return;
+    }
+
+    setPendingMessages((current) =>
+      current.map((item) =>
+        item.client_id === pendingMessage.client_id
+          ? { ...item, status: "sending" }
+          : item,
+      ),
+    );
+
+    await sendMessageHandler({
+      text: pendingMessage.original_message,
+      inputMode: pendingMessage.input_mode || "Text",
+      clearTextInput: false,
+      pendingId: pendingMessage.client_id,
+      replyTo: pendingMessage.reply_to || null,
+      replyPreview: pendingMessage.reply_preview || null,
+    });
+  };
+
+  const handleStartReply = (chatMessage, visibleText) => {
+    if (!chatMessage?._id) {
+      return;
+    }
+
+    setEditingMessage(null);
+    setReplyToMessage({
+      id: chatMessage._id,
+      sender: chatMessage.sendar === friendId ? friend?.name || "Friend" : "You",
+      text: visibleText,
+    });
+  };
+
+  const handleStartEdit = (chatMessage, visibleText) => {
+    if (!chatMessage?._id) {
+      return;
+    }
+
+    setReplyToMessage(null);
+    setEditingMessage({ id: chatMessage._id, text: visibleText });
+    setMessage(visibleText);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMessage || !message.trim()) {
+      return;
+    }
+
+    try {
+      await editMessage(editingMessage.id, message.trim());
+      setEditingMessage(null);
+      setMessage("");
+      await refreshMessages();
+    } catch (error) {
+      setSpeechError(error.message || "Unable to edit the message.");
+    }
+  };
+
+  const handleDelete = async (chatMessage, scope) => {
+    if (!chatMessage?._id) {
+      return;
+    }
+
+    if (scope === "everyone") {
+      const confirmed = window.confirm("Delete this message for everyone?");
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    try {
+      await deleteMessage(chatMessage._id, scope);
+      await refreshMessages();
+    } catch (error) {
+      setSpeechError(error.message || "Unable to delete the message.");
+    }
+  };
+
+  const handleForward = async (chatMessage) => {
+    if (!chatMessage?._id || !friendId) {
+      return;
+    }
+
+    try {
+      await forwardMessage(friendId, chatMessage._id);
+      await refreshMessages();
+    } catch (error) {
+      setSpeechError(error.message || "Unable to forward the message.");
+    }
+  };
+
+  const handleReaction = async (chatMessage, emoji) => {
+    if (!chatMessage?._id) {
+      return;
+    }
+
+    try {
+      await reactToMessage(chatMessage._id, emoji);
+      await refreshMessages();
+    } catch (error) {
+      setSpeechError(error.message || "Unable to react to the message.");
     }
   };
 
@@ -211,6 +591,8 @@ const Chat = ({
         text: spokenMessage,
         inputMode: "Audio",
         clearTextInput: false,
+        replyTo: replyToMessage?.id || null,
+        replyPreview: replyToMessage,
       });
     };
 
@@ -310,6 +692,8 @@ const Chat = ({
             text: transcript,
             inputMode: "Audio",
             clearTextInput: false,
+            replyTo: replyToMessage?.id || null,
+            replyPreview: replyToMessage,
           });
         } catch (error) {
           setVoicePreview("");
@@ -359,20 +743,188 @@ const Chat = ({
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [searchableMessages]);
+
+  useEffect(() => {
+    const queue = loadQueue();
+
+    const queuedPending = queue
+      .filter((item) => item.friend_id?.toString() === friendId?.toString())
+      .map((item) => ({
+        client_id: item.client_id,
+        sendar: currentUserProfile?._id || "me",
+        receiver: item.friend_id,
+        original_message: item.message,
+        translated_message: "",
+        input_mode: item.input_mode,
+        sender_language: preferredLanguage,
+        receiver_language: friendLanguage,
+        reply_to: item.reply_to,
+        status: "queued",
+        timestamp: new Date().toISOString(),
+        isLocal: true,
+      }));
+
+    setPendingMessages((current) => {
+      const withoutQueued = current.filter((item) => item.status !== "queued");
+      return [...withoutQueued, ...queuedPending];
+    });
+  }, [currentUserProfile?._id, friendId, friendLanguage, loadQueue, preferredLanguage]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      processQueue();
+    };
+
+    window.addEventListener("online", handleOnline);
+
+    const interval = setInterval(() => {
+      if (navigator.onLine) {
+        processQueue();
+      }
+    }, 10000);
+
+    if ("serviceWorker" in navigator) {
+      const handler = (event) => {
+        if (event?.data?.type === "mlc-sync") {
+          processQueue();
+        }
+      };
+
+      navigator.serviceWorker.addEventListener("message", handler);
+
+      return () => {
+        window.removeEventListener("online", handleOnline);
+        clearInterval(interval);
+        navigator.serviceWorker.removeEventListener("message", handler);
+      };
+    }
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      clearInterval(interval);
+    };
+  }, [friendId, processQueue]);
+
+  useEffect(() => {
+    if (!friendId) {
+      return;
+    }
+
+    let interval;
+
+    const loadPresence = async () => {
+      try {
+        const presence = await getPresence(friendId);
+        setPresenceInfo({
+          isOnline: Boolean(presence.is_online),
+          lastSeen: presence.last_seen || null,
+        });
+      } catch (error) {
+        console.error("Presence fetch failed:", error);
+      }
+    };
+
+    const loadTyping = async () => {
+      try {
+        const typing = await getTypingStatus(friendId);
+        setIsFriendTyping(Boolean(typing.is_typing));
+      } catch (error) {
+        console.error("Typing fetch failed:", error);
+      }
+    };
+
+    loadPresence();
+    loadTyping();
+    interval = setInterval(() => {
+      loadPresence();
+      loadTyping();
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [friendId]);
+
+  useEffect(() => {
+    if (!friendId) {
+      return;
+    }
+
+    const stored = localStorage.getItem("mlc_muted_chats");
+    const mutedIds = stored ? JSON.parse(stored) : [];
+    setIsChatMuted(mutedIds.includes(friendId));
+  }, [friendId]);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      selectedFilesRef.current.forEach((item) =>
+        URL.revokeObjectURL(item.preview),
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    selectedFilesRef.current = selectedFiles;
+  }, [selectedFiles]);
+
+  useEffect(() => {
+    if (!friendId || !messages.length) {
+      return;
+    }
+
+    const hasUnreadIncoming = messages.some(
+      (chatMessage) =>
+        chatMessage.sendar === friendId && chatMessage.status !== "read",
+    );
+
+    if (!hasUnreadIncoming) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    markMessagesRead(friendId)
+      .then(() => {
+        if (!isCancelled) {
+          refreshMessages();
+        }
+      })
+      .catch((error) => {
+        if (!isCancelled) {
+          console.error("Failed to mark messages read:", error);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [friendId, messages, refreshMessages]);
 
   useEffect(() => {
     if (preferredMode !== "Audio" || !speechPlaybackSupported) {
       return;
     }
 
-    const nextIncomingMessage = [...messages]
-      .reverse()
-      .find(
-        (chatMessage) =>
-          chatMessage.sendar === friendId &&
-          !spokenMessageIdsRef.current.has(chatMessage._id),
-      );
+    const nextIncomingMessage = [...messages].reverse().find((chatMessage) => {
+      if (chatMessage.sendar !== friendId) {
+        return false;
+      }
+
+      if (spokenMessageIdsRef.current.has(chatMessage._id)) {
+        return false;
+      }
+
+      if (!preferencesUpdatedAt) {
+        return true;
+      }
+
+      const messageTime = new Date(
+        chatMessage.timestamp || chatMessage.createdAt || 0,
+      ).getTime();
+      return messageTime > preferencesUpdatedAt;
+    });
 
     if (!nextIncomingMessage) {
       return;
@@ -386,8 +938,10 @@ const Chat = ({
     warmupSpeechSynthesis();
 
     speakText({
-      text: nextIncomingMessage.translated_message,
-      language: preferredLanguage || nextIncomingMessage.receiver_language,
+      text:
+        nextIncomingMessage.translated_message ||
+        nextIncomingMessage.original_message,
+      language: nextIncomingMessage.receiver_language || preferredLanguage,
     })
       .catch((error) => {
         if (!isCancelled) {
@@ -414,6 +968,11 @@ const Chat = ({
 
   useEffect(() => {
     return () => {
+      if (friendId) {
+        setTypingStatus(friendId, false).catch((error) => {
+          console.error("Failed to clear typing status:", error);
+        });
+      }
       if (
         mediaRecorderRef.current &&
         mediaRecorderRef.current.state !== "inactive"
@@ -429,19 +988,36 @@ const Chat = ({
 
       stopSpeechPlayback();
     };
-  }, []);
+  }, [friendId]);
+
+  const formatLastSeen = (lastSeenValue) => {
+    if (!lastSeenValue) {
+      return "Offline";
+    }
+
+    const lastSeenDate = new Date(lastSeenValue);
+    if (Number.isNaN(lastSeenDate.getTime())) {
+      return "Offline";
+    }
+
+    return `Last seen ${lastSeenDate.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`;
+  };
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden rounded-[2rem] border border-white/70 bg-[#fffdf9]/88 shadow-2xl shadow-slate-300/20 backdrop-blur">
-      <div className="relative overflow-hidden border-b border-[#efe6d7] bg-[linear-gradient(135deg,#fff9ef_0%,#f6efe2_48%,#eef4f2_100%)] px-5 py-5 sm:px-6">
-        <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-[#1f4f46]/8 blur-3xl" />
-        <div className="absolute bottom-0 left-12 h-24 w-24 rounded-full bg-[#d7b06f]/16 blur-3xl" />
-
-        <div className="relative flex items-start justify-between gap-4">
-          <div className="flex items-start gap-4">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#efeae2]">
+      <div className="shrink-0 border-l border-[#d1d7db] bg-[#f0f2f5] px-3 py-2.5 sm:px-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <button
+              type="button"
               onClick={onBack}
-              className="rounded-2xl border border-white/70 bg-white/80 p-3 text-slate-600 shadow-sm transition-all hover:text-slate-900 lg:hidden"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#54656f] transition hover:bg-[#e2e6e8] lg:hidden"
+              aria-label="Back to contacts"
             >
               <svg
                 className="h-5 w-5"
@@ -458,128 +1034,267 @@ const Chat = ({
               </svg>
             </button>
 
-            <div className="flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-[#1f4f46] text-lg font-extrabold text-white shadow-lg shadow-[#1f4f46]/20">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#dfe5e7] text-sm font-extrabold text-[#54656f]">
               {getInitials(friend?.name)}
             </div>
 
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#8a6b38]">
-                Active Conversation
-              </p>
-              <h2 className="mt-2 text-2xl font-extrabold text-slate-900">
+            <div className="min-w-0">
+              <h2 className="truncate text-base font-semibold text-[#111b21]">
                 {friend?.name || "Chat"}
               </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-                You see your original message. {friend?.name || "Your friend"}{" "}
-                receives the translated version in{" "}
-                <span className="font-semibold text-slate-900">
-                  {receiverLanguageLabel}
-                </span>{" "}
-                with <span className="font-semibold text-slate-900">{outgoingModeLabel}</span>{" "}
-                delivery.
-              </p>
+              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs font-medium text-[#667781]">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    presenceInfo.isOnline ? "bg-[#00a884]" : "bg-[#8696a0]"
+                  }`}
+                />
+                <span>
+                  {presenceInfo.isOnline
+                    ? "Online"
+                    : formatLastSeen(presenceInfo.lastSeen)}
+                </span>
+                {isFriendTyping && (
+                  <span className="font-medium text-[#008069]">
+                    Typing...
+                  </span>
+                )}
+                {isChatMuted && (
+                  <span className="text-[#667781]">
+                    Muted
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="hidden flex-wrap gap-2 xl:flex">
-            <span className="rounded-full bg-white px-3 py-2 text-xs font-semibold text-[#1f4f46] shadow-sm">
-              You send in {senderLanguageLabel}
+          <div className="flex shrink-0 items-center gap-1 text-[#54656f]">
+            <span className="hidden max-w-[15rem] truncate rounded-full bg-white/70 px-3 py-1.5 text-xs font-medium text-[#54656f] xl:inline">
+              {receiverLanguageLabel} / {outgoingModeLabel}
             </span>
-            <span className="rounded-full bg-white px-3 py-2 text-xs font-semibold text-[#8a6b38] shadow-sm">
-              You receive in {getLanguageLabel(preferredLanguage)} / {incomingModeLabel}
-            </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const stored = localStorage.getItem("mlc_muted_chats");
+                  const mutedIds = stored ? JSON.parse(stored) : [];
+                  const nextMuted = isChatMuted
+                    ? mutedIds.filter((id) => id !== friendId)
+                    : [...mutedIds, friendId];
+                  localStorage.setItem(
+                    "mlc_muted_chats",
+                    JSON.stringify(nextMuted),
+                  );
+                  setIsChatMuted(!isChatMuted);
+                }}
+                className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-[#e2e6e8] ${
+                  isChatMuted
+                    ? "text-[#008069]"
+                    : "text-[#54656f]"
+                }`}
+                title={isChatMuted ? "Unmute chat" : "Mute chat"}
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.5 8.5a4.5 4.5 0 010 7M6 9H4a1 1 0 00-1 1v4a1 1 0 001 1h2l5 4V5L8.5 7M4 4l16 16" />
+                </svg>
+              </button>
+            <button
+              type="button"
+              className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-[#e2e6e8]"
+              title="Conversation details"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6h.01M12 12h.01M12 18h.01" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-3 border-b border-[#efe6d7] bg-[#fcfaf5] px-5 py-4 sm:grid-cols-2 sm:px-6">
-        <div className="rounded-[1.4rem] border border-[#e7efe9] bg-[#eef4f2] px-4 py-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1f4f46]">
-            Sender View
-          </p>
-          <p className="mt-2 text-sm leading-7 text-slate-700">
-            Your bubble keeps the original wording you typed or spoke, such as
-            <span className="font-semibold text-slate-900"> "Hi"</span>.
-          </p>
-        </div>
-        <div className="rounded-[1.4rem] border border-[#f2e7cf] bg-[#fff4df] px-4 py-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8a6b38]">
-            Receiver View
-          </p>
-          <p className="mt-2 text-sm leading-7 text-slate-700">
-            {friend?.name || "Your friend"} receives the translated version, for
-            example
-            <span className="font-semibold text-slate-900"> "Namaste"</span>,
-            in {receiverLanguageLabel} with {outgoingModeLabel.toLowerCase()} delivery.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(31,79,70,0.05),transparent_30%),linear-gradient(180deg,#fcfaf5_0%,#f7f2e8_100%)] px-4 py-5 sm:px-6">
-        <ul className="flex flex-col gap-4">
-          {messages && messages.length > 0 ? (
-            messages.map((chatMessage) => {
+      <div className="wa-chat-wallpaper flex-1 overflow-y-auto border-l border-[#d1d7db] px-3 py-5 sm:px-8">
+        <ul className="flex flex-col gap-1.5">
+          {searchableMessages && searchableMessages.length > 0 ? (
+            searchableMessages.map((chatMessage) => {
               const isIncoming = chatMessage.sendar === friendId;
+              const isOwnMessage =
+                chatMessage.sendar?.toString() === currentUserId?.toString();
+              const isDeletedForAll = Boolean(chatMessage.deleted_for_all);
+              const incomingLanguage =
+                chatMessage.receiver_language || preferredLanguage;
+              const incomingMode = chatMessage.receiver_mode || preferredMode;
               const visibleText = isIncoming
-                ? chatMessage.translated_message
+                ? chatMessage.translated_message || chatMessage.original_message
                 : chatMessage.original_message;
+              const displayText = isDeletedForAll
+                ? "Message deleted"
+                : visibleText;
               const playbackLanguage = isIncoming
-                ? preferredLanguage || chatMessage.receiver_language
+                ? incomingLanguage
                 : chatMessage.sender_language || preferredLanguage;
               const messageRoleLabel = isIncoming ? "Translated" : "Original";
               const inputLabel =
-                chatMessage.input_mode === "Audio" ? "Voice input" : "Typed";
+                chatMessage.input_mode === "Audio"
+                  ? "Voice input"
+                  : chatMessage.input_mode === "Media"
+                    ? "Media"
+                    : "Typed";
               const deliveryDetail = isIncoming
                 ? `For you in ${getLanguageLabel(
-                    preferredLanguage || chatMessage.receiver_language,
-                  )} / ${incomingModeLabel}`
+                    incomingLanguage,
+                  )} / ${getModeLabel(incomingMode)}`
                 : `${friend?.name || "Receiver"} gets ${getLanguageLabel(
                     friendLanguage || chatMessage.receiver_language,
                   )} / ${outgoingModeLabel}`;
+              const statusValue = isIncoming
+                ? null
+                : chatMessage.status || (chatMessage.isLocal ? "sending" : "sent");
+              const statusLabelMap = {
+                queued: "Queued",
+                sending: "Sending",
+                sent: "Sent",
+                delivered: "Delivered",
+                read: "Read",
+                failed: "Failed",
+              };
+              const statusLabel = statusValue ? statusLabelMap[statusValue] : null;
+              const reactionCounts = (chatMessage.reactions || []).reduce(
+                (acc, reaction) => {
+                  acc[reaction.emoji] = (acc[reaction.emoji] || 0) + 1;
+                  return acc;
+                },
+                {},
+              );
+              const userReaction = (chatMessage.reactions || []).find(
+                (reaction) => reaction.user?.toString() === currentUserId,
+              );
+              const replyMessage = chatMessage.reply_to;
+              const replyPreview = chatMessage.reply_preview;
+              const replyText = replyMessage
+                ? replyMessage.deleted_for_all
+                  ? "Message deleted"
+                  : replyMessage.sendar === friendId
+                    ? replyMessage.translated_message
+                    : replyMessage.original_message
+                : replyPreview?.text || "";
+              const replySenderLabel = replyMessage
+                ? replyMessage.sendar === friendId
+                  ? friend?.name || "Friend"
+                  : "You"
+                : replyPreview?.sender || "";
 
               return (
                 <li
-                  key={chatMessage._id}
-                  className={`flex ${isIncoming ? "justify-start" : "justify-end"}`}
+                  key={chatMessage._id || chatMessage.client_id}
+                  className={`flex py-0.5 ${isIncoming ? "justify-start" : "justify-end"}`}
                 >
                   <article
-                    className={`max-w-[92%] rounded-[1.8rem] border px-4 py-4 shadow-lg sm:max-w-[72%] ${
+                    className={`group relative max-w-[88%] rounded-lg px-2.5 py-1.5 text-[#111b21] shadow-sm sm:max-w-[62%] ${
                       isIncoming
-                        ? "rounded-tl-md border-white/70 bg-white text-slate-800 shadow-slate-200/45"
-                        : "rounded-tr-md border-[#1f4f46]/10 bg-[#1f4f46] text-white shadow-[#1f4f46]/20"
+                        ? "rounded-tl-none bg-white"
+                        : "rounded-tr-none bg-[#d9fdd3]"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="sr-only">
                           <span
-                            className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${
-                              isIncoming
-                                ? "bg-[#f6efe2] text-[#8a6b38]"
-                                : "bg-white/15 text-white"
-                            }`}
+                            className="rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]"
                           >
                             {messageRoleLabel}
                           </span>
                           <span
-                            className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
-                              isIncoming
-                                ? "bg-[#eef4f2] text-[#1f4f46]"
-                                : "bg-white/10 text-[#d7e7df]"
-                            }`}
+                            className="rounded-full px-3 py-1 text-[11px] font-semibold"
                           >
                             {inputLabel}
                           </span>
                         </div>
 
-                        <p className="mt-4 break-words text-[15px] leading-8 sm:text-base">
-                          {visibleText}
-                        </p>
+                        {(replyMessage || replyPreview) && (
+                          <div
+                            className={`mb-2 rounded-md border-l-4 px-3 py-2 text-xs leading-5 ${
+                              isIncoming
+                                ? "border-[#00a884] bg-[#f0f2f5] text-[#54656f]"
+                                : "border-[#00a884] bg-[#cfeec8] text-[#54656f]"
+                            }`}
+                          >
+                            <span className="font-semibold">
+                              Replying to {replySenderLabel}:
+                            </span>{" "}
+                            {replyText || "Message"}
+                          </div>
+                        )}
+
+                        {displayText && (
+                          <p className="break-words whitespace-pre-wrap text-[14px] leading-5">
+                            {displayText}
+                          </p>
+                        )}
+
+                        {chatMessage.attachments?.length > 0 && !isDeletedForAll && (
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            {chatMessage.attachments.map((attachment) => {
+                              if (attachment.kind === "image") {
+                                return (
+                                  <img
+                                    key={attachment.url}
+                                    src={attachment.url}
+                                    alt={attachment.file_name || "Image"}
+                                    className="w-full rounded-lg object-cover"
+                                  />
+                                );
+                              }
+
+                              if (attachment.kind === "video") {
+                                return (
+                                  <video
+                                    key={attachment.url}
+                                    controls
+                                    className="w-full rounded-lg"
+                                    src={attachment.url}
+                                  />
+                                );
+                              }
+
+                              if (attachment.kind === "audio") {
+                                return (
+                                  <audio
+                                    key={attachment.url}
+                                    controls
+                                    className="w-full"
+                                    src={attachment.url}
+                                  />
+                                );
+                              }
+
+                              return (
+                                <a
+                                  key={attachment.url}
+                                  href={attachment.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={`block rounded-lg px-3 py-2 text-sm font-semibold ${
+                                    isIncoming
+                                      ? "bg-[#f0f2f5] text-[#111b21]"
+                                      : "bg-[#cfeec8] text-[#111b21]"
+                                  }`}
+                                >
+                                  {attachment.file_name || "Download file"}
+                                </a>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {(chatMessage.forwarded_from || chatMessage.forwarded_from === 0) && (
+                          <p
+                            className={`mt-3 text-[11px] font-semibold uppercase tracking-[0.2em] ${
+                              isIncoming ? "text-[#8696a0]" : "text-[#667781]"
+                            }`}
+                          >
+                            Forwarded
+                          </p>
+                        )}
 
                         <p
-                          className={`mt-4 text-xs leading-6 ${
-                            isIncoming ? "text-slate-500" : "text-[#d7e7df]"
-                          }`}
+                          className="sr-only"
                         >
                           {isIncoming
                             ? "Translated copy shown to you."
@@ -592,20 +1307,20 @@ const Chat = ({
                         type="button"
                         onClick={() =>
                           playMessageAudio(
-                            chatMessage._id,
-                            visibleText,
+                            chatMessage._id || chatMessage.client_id,
+                            displayText,
                             playbackLanguage,
                           )
                         }
-                        disabled={!speechPlaybackSupported}
-                        className={`shrink-0 rounded-2xl p-3 transition-all ${
+                        disabled={!speechPlaybackSupported || isDeletedForAll || !displayText}
+                        className={`-mr-1 -mt-1 shrink-0 rounded-full p-1 opacity-0 transition-all group-hover:opacity-100 group-focus-within:opacity-100 ${
                           isIncoming
-                            ? "bg-[#f6efe2] text-[#8a6b38] hover:bg-[#efe3ca]"
-                            : "bg-white/12 text-white hover:bg-white/18"
+                            ? "text-[#54656f] hover:bg-[#f0f2f5]"
+                            : "text-[#54656f] hover:bg-[#cfeec8]"
                         } ${
-                          !speechPlaybackSupported
+                          !speechPlaybackSupported || isDeletedForAll
                             ? "cursor-not-allowed opacity-40"
-                            : "shadow-sm"
+                            : ""
                         }`}
                         title="Play message audio"
                       >
@@ -629,11 +1344,126 @@ const Chat = ({
                       </button>
                     </div>
 
+                    {!isDeletedForAll && !chatMessage.isLocal && (
+                      <div
+                        className={`absolute bottom-full z-20 mb-1 flex items-center gap-1 rounded-full bg-white/95 px-1.5 py-1 text-[#54656f] shadow-lg ring-1 ring-black/5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 ${
+                          isIncoming ? "left-1" : "right-1"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleStartReply(chatMessage, displayText)}
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#f0f2f5]"
+                        >
+                          Reply
+                        </button>
+                        {!isIncoming && isOwnMessage && (
+                          <button
+                            type="button"
+                            onClick={() => handleStartEdit(chatMessage, displayText)}
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#f0f2f5]"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleForward(chatMessage)}
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#f0f2f5]"
+                        >
+                          Forward
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenReactionFor(
+                              openReactionFor === chatMessage._id
+                                ? null
+                              : chatMessage._id,
+                            )
+                          }
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#f0f2f5]"
+                        >
+                          {userReaction?.emoji || "React"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(chatMessage, "me")}
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#f0f2f5]"
+                        >
+                          Delete
+                        </button>
+                        {!isIncoming && isOwnMessage && (
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(chatMessage, "everyone")}
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#f0f2f5]"
+                          >
+                            Delete all
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {openReactionFor === chatMessage._id && (
+                      <div
+                        className={`absolute bottom-full z-30 mb-10 flex gap-1.5 rounded-full bg-white px-2 py-1.5 shadow-xl ring-1 ring-black/5 ${
+                          isIncoming ? "left-1" : "right-1"
+                        }`}
+                      >
+                        {quickReactions.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => handleReaction(chatMessage, emoji)}
+                            className={`flex h-7 w-7 items-center justify-center rounded-full text-sm transition-all ${
+                              userReaction?.emoji === emoji
+                                ? "bg-[#00a884] text-white"
+                                : "text-[#111b21] hover:bg-[#f0f2f5]"
+                            }`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
                     <div
-                      className={`mt-4 flex items-center justify-end text-[11px] font-medium ${
-                        isIncoming ? "text-slate-400" : "text-[#d7e7df]"
+                      className={`mt-0.5 flex flex-wrap items-center justify-end gap-1.5 text-[10.5px] font-medium ${
+                        isIncoming ? "text-[#8696a0]" : "text-[#667781]"
                       }`}
                     >
+                      {Object.entries(reactionCounts).map(([emoji, count]) => (
+                        <span
+                          key={`${chatMessage._id}-${emoji}`}
+                          className="rounded-full bg-white/55 px-1.5 py-0.5 text-[10px] leading-none text-[#54656f]"
+                        >
+                          {emoji} {count}
+                        </span>
+                      ))}
+                      {chatMessage.edited_at && !isDeletedForAll && (
+                        <span className="uppercase tracking-[0.18em]">Edited</span>
+                      )}
+                      {!isIncoming && statusLabel && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            statusValue === "failed"
+                              ? "bg-red-100 text-red-600"
+                              : "text-[#667781]"
+                          }`}
+                        >
+                          {statusLabel}
+                        </span>
+                      )}
+                      {!isIncoming && statusValue === "failed" && (
+                        <button
+                          type="button"
+                          onClick={() => retryPendingMessage(chatMessage)}
+                          className="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-semibold text-red-600"
+                        >
+                          Retry
+                        </button>
+                      )}
                       {formatMessageTime(
                         chatMessage.timestamp || chatMessage.createdAt,
                       )}
@@ -643,15 +1473,13 @@ const Chat = ({
               );
             })
           ) : (
-            <div className="flex h-full items-center justify-center rounded-[1.8rem] border border-dashed border-slate-200 bg-white/50 px-6 py-16 text-center">
+            <div className="flex h-full items-center justify-center px-6 py-16 text-center">
               <div className="max-w-md">
-                <p className="text-xl font-extrabold text-slate-900">
+                <p className="text-xl font-semibold text-[#111b21]">
                   No messages yet
                 </p>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
-                  Send your first message in {senderLanguageLabel}. The receiver
-                  will get it translated into {receiverLanguageLabel} with{" "}
-                  {outgoingModeLabel.toLowerCase()} delivery.
+                <p className="mt-3 text-sm leading-7 text-[#667781]">
+                  {`Send your first message in ${senderLanguageLabel}. The receiver will get it translated into ${receiverLanguageLabel} with ${outgoingModeLabel.toLowerCase()} delivery.`}
                 </p>
               </div>
             </div>
@@ -661,45 +1489,161 @@ const Chat = ({
       </div>
 
       <form
-        className="border-t border-[#efe6d7] bg-white/90 px-5 py-5 sm:px-6"
+        className="shrink-0 border-l border-[#d1d7db] bg-[#f0f2f5] px-3 py-2"
         onSubmit={(event) => {
           event.preventDefault();
-          sendMessageHandler();
+          if (editingMessage) {
+            handleSaveEdit();
+            return;
+          }
+
+          if (selectedFiles.length > 0) {
+            sendMediaHandler();
+            return;
+          }
+
+          sendMessageHandler({
+            replyTo: replyToMessage?.id || null,
+            replyPreview: replyToMessage,
+          });
         }}
       >
-        <div className="mb-4 flex flex-wrap gap-2">
-          <span className="rounded-full bg-[#eef4f2] px-3 py-2 text-xs font-semibold text-[#1f4f46]">
-            You send in {senderLanguageLabel}
-          </span>
-          <span className="rounded-full bg-[#fff4df] px-3 py-2 text-xs font-semibold text-[#8a6b38]">
-            {friend?.name || "Receiver"} gets {receiverLanguageLabel} / {outgoingModeLabel}
-          </span>
-        </div>
-
+        {(replyToMessage || editingMessage) && (
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border-l-4 border-[#00a884] bg-white px-3 py-2 text-sm text-[#54656f]">
+            <div>
+              {editingMessage ? (
+                <span className="font-semibold text-[#111b21]">
+                  Editing message
+                </span>
+              ) : (
+                <span className="font-semibold text-[#111b21]">
+                  Replying to {replyToMessage?.sender}
+                </span>
+              )}
+              <p className="mt-1 text-xs text-[#667781]">
+                {editingMessage ? editingMessage.text : replyToMessage?.text}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setReplyToMessage(null);
+                setEditingMessage(null);
+                setMessage("");
+              }}
+              className="rounded-full bg-[#f0f2f5] px-3 py-1 text-xs font-semibold text-[#54656f]"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         {(voicePreview || speechError) && (
-          <div className="mb-4 space-y-2">
+          <div className="mb-2 space-y-2">
             {voicePreview && (
-              <div className="rounded-2xl border border-[#d7e7df] bg-[#eef4f2] px-4 py-3 text-sm font-medium text-[#1f4f46]">
+              <div className="rounded-lg bg-[#d9fdd3] px-3 py-2 text-sm font-medium text-[#111b21]">
                 Voice preview: {voicePreview}
               </div>
             )}
             {speechError && (
-              <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+              <div className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600">
                 {speechError}
               </div>
             )}
           </div>
         )}
 
-        <div className="flex items-end gap-3">
+        {selectedFiles.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {selectedFiles.map((item) => (
+              <div
+                key={`${item.file.name}-${item.file.size}`}
+                className="flex items-center gap-2 rounded-lg bg-white px-2 py-1.5"
+              >
+                <div className="h-8 w-8 overflow-hidden rounded-lg bg-[#f0f2f5]">
+                  {item.file.type.startsWith("image/") ? (
+                    <img
+                      src={item.preview}
+                      alt={item.file.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-[#54656f]">
+                      {item.file.type.startsWith("video/")
+                        ? "VID"
+                        : item.file.type.startsWith("audio/")
+                          ? "AUD"
+                          : "FILE"}
+                    </div>
+                  )}
+                </div>
+                <div className="text-xs font-semibold text-[#54656f]">
+                  <p className="max-w-[160px] truncate">{item.file.name}</p>
+                  <p className="text-[11px] text-[#8696a0]">
+                    {(item.file.size / 1024).toFixed(1)} KB
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedFiles((current) => {
+                      const next = current.filter((entry) => entry !== item);
+                      URL.revokeObjectURL(item.preview);
+                      return next;
+                    })
+                  }
+                  className="rounded-full bg-[#f0f2f5] px-2 py-1 text-[11px] font-semibold text-[#54656f]"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(event) => {
+              const nextFiles = Array.from(event.target.files || []).map(
+                (file) => ({ file, preview: URL.createObjectURL(file) }),
+              );
+              if (nextFiles.length) {
+                setSelectedFiles((current) => [...current, ...nextFiles]);
+              }
+              event.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#54656f] transition hover:bg-[#e2e6e8]"
+            title="Attach files"
+          >
+            <svg
+              className="h-[18px] w-[18px]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M16.5 12.75l-5.25 5.25a3 3 0 01-4.243-4.243l7.5-7.5a2.25 2.25 0 013.182 3.182l-7.5 7.5a.75.75 0 01-1.06-1.06l6.97-6.97"
+              />
+            </svg>
+          </button>
           <button
             type="button"
             onClick={isRecording ? stopVoiceRecording : startVoiceRecording}
             disabled={!voiceInputSupported || isSending}
-            className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.4rem] shadow-lg transition-all ${
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
               isRecording
-                ? "bg-[#c04b40] text-white shadow-[#c04b40]/20 hover:bg-[#a93e35]"
-                : "bg-[#f6efe2] text-[#8a6b38] shadow-[#d7b06f]/10 hover:-translate-y-0.5 hover:bg-[#efe3ca]"
+                ? "bg-[#dc3545] text-white"
+                : "text-[#54656f] hover:bg-[#e2e6e8]"
             } ${
               !voiceInputSupported || isSending
                 ? "cursor-not-allowed opacity-50"
@@ -714,7 +1658,7 @@ const Chat = ({
             }
           >
             <svg
-              className="h-5 w-5"
+              className="h-[18px] w-[18px]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -734,17 +1678,42 @@ const Chat = ({
             </svg>
           </button>
 
-          <div className="flex-1 rounded-[1.6rem] border border-slate-200 bg-[#fcfaf5] p-2 shadow-sm">
+          <div className="min-w-0 flex-1 rounded-full bg-white px-1 py-0.5 shadow-sm">
             <input
               type="text"
               placeholder={
                 isRecording
                   ? "Listening for your voice message..."
-                  : `Type in ${senderLanguageLabel}. ${friend?.name || "Receiver"} gets ${receiverLanguageLabel}.`
+                  : editingMessage
+                    ? "Edit your message"
+                    : "Message"
               }
-              className="w-full bg-transparent px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400"
+              className="w-full bg-transparent px-3 py-2 text-sm text-[#111b21] outline-none placeholder:text-[#667781]"
               value={message}
-              onChange={(event) => setMessage(event.target.value)}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                setMessage(nextValue);
+
+                if (!friendId) {
+                  return;
+                }
+
+                setTypingStatus(friendId, nextValue.trim().length > 0).catch(
+                  (error) => {
+                    console.error("Failed to set typing status:", error);
+                  },
+                );
+
+                if (typingTimeoutRef.current) {
+                  clearTimeout(typingTimeoutRef.current);
+                }
+
+                typingTimeoutRef.current = setTimeout(() => {
+                  setTypingStatus(friendId, false).catch((error) => {
+                    console.error("Failed to clear typing status:", error);
+                  });
+                }, 1800);
+              }}
               disabled={isSending}
             />
           </div>
@@ -752,14 +1721,14 @@ const Chat = ({
           <button
             type="submit"
             disabled={isSending}
-            className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.4rem] text-white shadow-lg transition-all ${
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition ${
               isSending
-                ? "cursor-not-allowed bg-slate-400"
-                : "bg-[#1f4f46] shadow-[#1f4f46]/20 hover:-translate-y-0.5 hover:bg-[#173d37]"
+                ? "cursor-not-allowed bg-[#8696a0]"
+                : "bg-[#00a884] hover:bg-[#008069]"
             }`}
           >
             <svg
-              className="h-5 w-5 translate-x-0.5"
+              className="h-[18px] w-[18px] translate-x-0.5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"

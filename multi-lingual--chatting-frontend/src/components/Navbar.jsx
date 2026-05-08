@@ -3,10 +3,10 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { logoutUser } from "../services/api";
 
 const navigationClassName = ({ isActive }) =>
-  `rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+  `rounded-full px-3.5 py-2 text-sm font-semibold transition-all ${
     isActive
-      ? "bg-[#1f4f46] text-white shadow-lg shadow-[#1f4f46]/20"
-      : "text-slate-600 hover:bg-white/80 hover:text-slate-900"
+      ? "bg-white/18 text-white"
+      : "text-white/82 hover:bg-white/12 hover:text-white"
   }`;
 
 const Navbar = () => {
@@ -26,23 +26,23 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-white/60 bg-[#fcfaf5]/85 backdrop-blur-xl">
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+    <nav className="sticky top-0 z-50 bg-[#008069] text-white shadow-sm">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link to="/" className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#1f4f46] text-lg font-extrabold text-white shadow-lg shadow-[#1f4f46]/25">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/16 text-base font-extrabold text-white ring-1 ring-white/20">
             M
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#8a6b38]">
+            <p className="hidden text-[10px] font-semibold uppercase tracking-[0.22em] text-white/70 sm:block">
               Live Translation
             </p>
-            <p className="text-lg font-extrabold text-slate-900">
+            <p className="text-base font-extrabold text-white">
               Multilingual Chat
             </p>
           </div>
         </Link>
 
-        <div className="hidden items-center gap-2 rounded-full border border-white/70 bg-white/70 p-1 shadow-sm md:flex">
+        <div className="hidden items-center gap-1 rounded-full bg-white/8 p-1 md:flex">
           <NavLink to="/" className={navigationClassName}>
             Home
           </NavLink>
@@ -54,6 +54,9 @@ const Navbar = () => {
               <NavLink to="/addfriends" className={navigationClassName}>
                 Find Friends
               </NavLink>
+              <NavLink to="/settings" className={navigationClassName}>
+                Settings
+              </NavLink>
             </>
           )}
         </div>
@@ -62,7 +65,7 @@ const Navbar = () => {
           {isLoggedIn ? (
             <button
               onClick={handleLogout}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-all hover:-translate-y-0.5 hover:border-[#1f4f46]/20 hover:text-[#1f4f46] hover:shadow-md"
+              className="rounded-full bg-white/14 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-white/20"
             >
               Logout
             </button>
@@ -70,13 +73,13 @@ const Navbar = () => {
             <>
               <Link
                 to="/login"
-                className="rounded-full px-4 py-2 text-sm font-semibold text-slate-700 transition-all hover:text-slate-900"
+                className="rounded-full px-4 py-2 text-sm font-semibold text-white/86 transition-all hover:bg-white/12 hover:text-white"
               >
                 Log in
               </Link>
               <Link
                 to="/register"
-                className="rounded-full bg-[#c98a32] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#c98a32]/30 transition-all hover:-translate-y-0.5 hover:bg-[#b97b24]"
+                className="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[#008069] transition-all hover:bg-[#e9edef]"
               >
                 Get Started
               </Link>
@@ -85,8 +88,10 @@ const Navbar = () => {
         </div>
 
         <button
+          type="button"
           onClick={() => setIsMobileMenuOpen((open) => !open)}
-          className="inline-flex items-center justify-center rounded-2xl border border-white/60 bg-white/80 p-3 text-slate-700 shadow-sm md:hidden"
+          className="inline-flex items-center justify-center rounded-full bg-white/12 p-2.5 text-white md:hidden"
+          aria-expanded={isMobileMenuOpen}
         >
           <span className="sr-only">Open navigation</span>
           {!isMobileMenuOpen ? (
@@ -122,7 +127,7 @@ const Navbar = () => {
       </div>
 
       {isMobileMenuOpen && (
-        <div className="border-t border-white/70 bg-[#fcfaf5]/95 px-4 pb-5 pt-3 shadow-xl md:hidden">
+        <div className="border-t border-white/10 bg-[#008069] px-4 pb-5 pt-3 shadow-xl md:hidden">
           <div className="flex flex-col gap-2">
             <NavLink
               to="/"
@@ -147,6 +152,13 @@ const Navbar = () => {
                 >
                   Find Friends
                 </NavLink>
+                <NavLink
+                  to="/settings"
+                  className={navigationClassName}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Settings
+                </NavLink>
               </>
             )}
           </div>
@@ -158,7 +170,7 @@ const Navbar = () => {
                   handleLogout();
                   setIsMobileMenuOpen(false);
                 }}
-                className="w-full rounded-full border border-slate-200 bg-white px-4 py-2.5 text-left text-sm font-semibold text-slate-700"
+                className="w-full rounded-full bg-white/14 px-4 py-2.5 text-left text-sm font-semibold text-white"
               >
                 Logout
               </button>
@@ -167,14 +179,14 @@ const Navbar = () => {
                 <Link
                   to="/login"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700"
+                  className="rounded-full bg-white/14 px-4 py-2.5 text-center text-sm font-semibold text-white"
                 >
                   Log in
                 </Link>
                 <Link
                   to="/register"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="rounded-full bg-[#c98a32] px-4 py-2.5 text-center text-sm font-semibold text-white"
+                  className="rounded-full bg-white px-4 py-2.5 text-center text-sm font-semibold text-[#008069]"
                 >
                   Get Started
                 </Link>

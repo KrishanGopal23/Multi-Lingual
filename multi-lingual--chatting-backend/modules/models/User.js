@@ -42,6 +42,50 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "None",
     },
+
+    multilingual_enabled: {
+      type: Boolean,
+      default: true,
+    },
+
+    is_online: {
+      type: Boolean,
+      default: false,
+    },
+
+    last_seen: {
+      type: Date,
+      default: null,
+    },
+
+    typing_to: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    typing_until: {
+      type: Date,
+      default: null,
+    },
+
+    push_subscriptions: [
+      {
+        endpoint: { type: String, default: "" },
+        keys: {
+          p256dh: { type: String, default: "" },
+          auth: { type: String, default: "" },
+        },
+      },
+    ],
+
+    refresh_tokens: [
+      {
+        token_hash: { type: String, required: true },
+        expires_at: { type: Date, required: true },
+        created_at: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );

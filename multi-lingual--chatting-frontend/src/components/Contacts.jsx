@@ -7,43 +7,48 @@ const Contacts = ({
   setSearchQuery,
   fetchMessages,
   currentFriendId,
+  toolbar,
 }) => {
   const filteredFriends = friends.filter((friend) =>
-    friend.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    (friend.name || "").toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   return (
-    <div className="flex h-full w-full flex-col rounded-[2rem] border border-white/70 bg-[#fffdf9]/85 p-4 shadow-2xl shadow-slate-300/20 backdrop-blur">
-      <div className="shrink-0 rounded-[1.6rem] bg-[#f6efe2] p-5 shadow-inner">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8a6b38]">
-              Contacts
-            </p>
-            <h1 className="mt-2 text-2xl font-extrabold text-slate-900">
-              Your people
-            </h1>
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-white">
+      <div className="shrink-0 bg-[#f0f2f5] px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#00a884] text-sm font-extrabold text-white">
+              M
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-[#111b21]">Chats</h1>
+              <p className="text-xs font-medium text-[#667781]">
+                {friends.length} contacts
+              </p>
+            </div>
           </div>
-          <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-              Total
-            </p>
-            <p className="text-2xl font-extrabold text-slate-900">
-              {friends.length}
-            </p>
+          <div className="flex items-center gap-2 text-[#54656f]">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-[#e2e6e8]">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 01-4-.835L3 20l1.13-3.388A7.46 7.46 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </span>
           </div>
         </div>
+      </div>
 
-        <div className="relative mt-5">
+      <div className="shrink-0 border-b border-[#e9edef] bg-white px-3 py-2">
+        <div className="relative">
           <input
             type="text"
-            placeholder="Search contacts"
+            placeholder="Search or start new chat"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            className="w-full rounded-2xl border border-white/70 bg-white px-12 py-3.5 text-sm text-slate-700 shadow-sm outline-none transition-all placeholder:text-slate-400 focus:border-[#1f4f46]/20 focus:ring-4 focus:ring-[#1f4f46]/10"
+            className="w-full rounded-lg border-0 bg-[#f0f2f5] px-11 py-2.5 text-sm text-[#111b21] outline-none placeholder:text-[#667781] focus:ring-2 focus:ring-[#00a884]/25"
           />
           <svg
-            className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
+            className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667781]"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -58,7 +63,13 @@ const Contacts = ({
         </div>
       </div>
 
-      <ul className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
+      {toolbar && (
+        <div className="shrink-0 border-b border-[#e9edef] bg-white">
+          {toolbar}
+        </div>
+      )}
+
+      <ul className="flex-1 overflow-y-auto">
         {filteredFriends.length > 0 ? (
           filteredFriends.map((friend) => {
             const isActive = currentFriendId === friend._id;
@@ -68,36 +79,36 @@ const Contacts = ({
                 <button
                   type="button"
                   onClick={() => fetchMessages(friend._id)}
-                  className={`w-full rounded-[1.6rem] border px-4 py-4 text-left transition-all duration-200 ${
+                  className={`w-full border-b border-[#e9edef] px-4 py-3 text-left transition-colors ${
                     isActive
-                      ? "border-[#1f4f46]/20 bg-[#eef4f2] shadow-lg shadow-[#1f4f46]/10"
-                      : "border-white/70 bg-white/80 shadow-sm hover:-translate-y-0.5 hover:border-[#d7b06f]/30 hover:shadow-lg"
+                      ? "bg-[#f0f2f5]"
+                      : "bg-white hover:bg-[#f5f6f6]"
                   }`}
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     <div
-                      className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.2rem] text-lg font-extrabold ${
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-extrabold ${
                         isActive
-                          ? "bg-[#1f4f46] text-white"
-                          : "bg-[#f6efe2] text-[#1f4f46]"
+                          ? "bg-[#00a884] text-white"
+                          : "bg-[#dfe5e7] text-[#54656f]"
                       }`}
                     >
-                      {friend.name.charAt(0).toUpperCase()}
+                      {(friend.name || "?").charAt(0).toUpperCase()}
                     </div>
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-3">
-                        <h3 className="truncate text-base font-bold text-slate-900">
+                        <h3 className="truncate text-[15px] font-semibold text-[#111b21]">
                           {friend.name}
                         </h3>
-                        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8a6b38] shadow-sm">
+                        <span className="shrink-0 text-xs font-medium text-[#667781]">
                           {getModeLabel(friend.preferred_mode)}
                         </span>
                       </div>
 
-                      <p className="mt-2 text-sm text-slate-500">
+                      <p className="mt-1 truncate text-sm text-[#667781]">
                         Receives messages in{" "}
-                        <span className="font-semibold text-slate-700">
+                        <span className="font-medium text-[#54656f]">
                           {getLanguageLabel(friend.preferred_language)}
                         </span>
                       </p>
@@ -108,11 +119,11 @@ const Contacts = ({
             );
           })
         ) : (
-          <div className="rounded-[1.6rem] border border-dashed border-slate-200 bg-white/70 px-5 py-10 text-center">
-            <p className="text-base font-bold text-slate-700">
+          <div className="px-5 py-14 text-center">
+            <p className="text-base font-semibold text-[#111b21]">
               No contacts found
             </p>
-            <p className="mt-2 text-sm text-slate-500">
+            <p className="mt-2 text-sm text-[#667781]">
               Try a different name or add more friends.
             </p>
           </div>
