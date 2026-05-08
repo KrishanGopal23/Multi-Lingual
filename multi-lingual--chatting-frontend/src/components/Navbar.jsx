@@ -5,8 +5,8 @@ import { logoutUser } from "../services/api";
 const navigationClassName = ({ isActive }) =>
   `rounded-full px-3.5 py-2 text-sm font-semibold transition-all ${
     isActive
-      ? "bg-white/18 text-white"
-      : "text-white/82 hover:bg-white/12 hover:text-white"
+      ? "bg-white/20 text-white shadow-[0_8px_20px_rgba(0,0,0,0.18)]"
+      : "text-white/85 hover:bg-white/12 hover:text-white"
   }`;
 
 const Navbar = () => {
@@ -26,25 +26,29 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-50 bg-[#008069] text-white shadow-sm">
+    <nav className="sticky top-0 z-50 bg-gradient-to-r from-[#1e3a8a] via-[#6d28d9] to-[#be185d] text-white shadow-[0_12px_30px_rgba(15,23,42,0.25)]">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link to="/" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/16 text-base font-extrabold text-white ring-1 ring-white/20">
-            M
+        <Link to="/" className="group flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15 shadow-[0_10px_25px_rgba(30,64,175,0.35)] ring-1 ring-white/25 transition group-hover:-translate-y-0.5 group-hover:bg-white/20">
+            <img
+              src="/logo.png"
+              alt="Multilingual Chat logo"
+              className="h-8 w-8 rounded-xl object-contain"
+            />
           </div>
           <div>
-            <p className="hidden text-[10px] font-semibold uppercase tracking-[0.22em] text-white/70 sm:block">
-              Live Translation
-            </p>
             <p className="text-base font-extrabold text-white">
-              Multilingual Chat
+              MultiLingual Chat
             </p>
           </div>
         </Link>
 
-        <div className="hidden items-center gap-1 rounded-full bg-white/8 p-1 md:flex">
+        <div className="hidden items-center gap-1 rounded-full bg-white/10 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] backdrop-blur md:flex">
           <NavLink to="/" className={navigationClassName}>
             Home
+          </NavLink>
+          <NavLink to="/about" className={navigationClassName}>
+            About
           </NavLink>
           {isLoggedIn && (
             <>
@@ -65,7 +69,7 @@ const Navbar = () => {
           {isLoggedIn ? (
             <button
               onClick={handleLogout}
-              className="rounded-full bg-white/14 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-white/20"
+              className="rounded-full bg-gradient-to-r from-[#1e3a8a] via-[#6d28d9] to-[#be185d] px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(59,91,219,0.35)] ring-1 ring-white/20 transition-all hover:brightness-110"
             >
               Logout
             </button>
@@ -73,13 +77,13 @@ const Navbar = () => {
             <>
               <Link
                 to="/login"
-                className="rounded-full px-4 py-2 text-sm font-semibold text-white/86 transition-all hover:bg-white/12 hover:text-white"
+                className="rounded-full bg-gradient-to-r from-[#1e3a8a] via-[#6d28d9] to-[#be185d] px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(59,91,219,0.35)] ring-1 ring-white/20 transition-all hover:brightness-110"
               >
                 Log in
               </Link>
               <Link
                 to="/register"
-                className="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[#008069] transition-all hover:bg-[#e9edef]"
+                className="rounded-full bg-gradient-to-r from-[#1e3a8a] via-[#6d28d9] to-[#be185d] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(59,91,219,0.35)] ring-1 ring-white/20 transition-all hover:brightness-110"
               >
                 Get Started
               </Link>
@@ -127,7 +131,7 @@ const Navbar = () => {
       </div>
 
       {isMobileMenuOpen && (
-        <div className="border-t border-white/10 bg-[#008069] px-4 pb-5 pt-3 shadow-xl md:hidden">
+        <div className="border-t border-white/15 bg-[#6d28d9] px-4 pb-5 pt-3 shadow-xl md:hidden">
           <div className="flex flex-col gap-2">
             <NavLink
               to="/"
@@ -135,6 +139,13 @@ const Navbar = () => {
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Home
+            </NavLink>
+            <NavLink
+              to="/about"
+              className={navigationClassName}
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              About
             </NavLink>
             {isLoggedIn && (
               <>
@@ -163,14 +174,14 @@ const Navbar = () => {
             )}
           </div>
 
-          <div className="mt-4 border-t border-slate-200/70 pt-4">
+          <div className="mt-4 border-t border-white/25 pt-4">
             {isLoggedIn ? (
               <button
                 onClick={() => {
                   handleLogout();
                   setIsMobileMenuOpen(false);
                 }}
-                className="w-full rounded-full bg-white/14 px-4 py-2.5 text-left text-sm font-semibold text-white"
+                className="w-full rounded-full bg-gradient-to-r from-[#1e3a8a] via-[#6d28d9] to-[#be185d] px-4 py-2.5 text-left text-sm font-semibold text-white ring-1 ring-white/20"
               >
                 Logout
               </button>
@@ -179,14 +190,14 @@ const Navbar = () => {
                 <Link
                   to="/login"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="rounded-full bg-white/14 px-4 py-2.5 text-center text-sm font-semibold text-white"
+                  className="rounded-full bg-gradient-to-r from-[#1e3a8a] via-[#6d28d9] to-[#be185d] px-4 py-2.5 text-center text-sm font-semibold text-white ring-1 ring-white/20"
                 >
                   Log in
                 </Link>
                 <Link
                   to="/register"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="rounded-full bg-white px-4 py-2.5 text-center text-sm font-semibold text-[#008069]"
+                  className="rounded-full bg-gradient-to-r from-[#1e3a8a] via-[#6d28d9] to-[#be185d] px-4 py-2.5 text-center text-sm font-semibold text-white ring-1 ring-white/20"
                 >
                   Get Started
                 </Link>

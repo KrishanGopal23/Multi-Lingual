@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Contacts from "../components/Contacts.jsx";
 import Chat from "../components/Chat.jsx";
 import {
@@ -26,6 +27,7 @@ const ChatPage = () => {
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [globalSearchResults, setGlobalSearchResults] = useState([]);
   const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
+  const navigate = useNavigate();
 
   const isGlobalSearchActive = globalSearchQuery.trim().length > 0;
   const visibleGlobalSearchResults = isGlobalSearchActive
@@ -155,10 +157,10 @@ const ChatPage = () => {
           placeholder="Search"
           value={globalSearchQuery}
           onChange={(event) => setGlobalSearchQuery(event.target.value)}
-          className="h-9 w-full rounded-full border-0 bg-[#f0f2f5] px-9 text-sm text-[#111b21] outline-none placeholder:text-[#667781] focus:ring-2 focus:ring-[#00a884]/25"
+          className="h-9 w-full rounded-full border-0 bg-[#eef2ff] px-9 text-sm text-[#0b0b12] outline-none placeholder:text-[#64748b] focus:ring-2 focus:ring-[#c7d2fe]"
         />
         <svg
-          className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667781]"
+          className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -173,7 +175,8 @@ const ChatPage = () => {
       </div>
         <button
           type="button"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f0f2f5] text-[#54656f] transition hover:bg-[#e9edef]"
+          onClick={() => navigate("/addfriends")}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eef2ff] text-[#475569] transition hover:bg-[#e0e7ff]"
           title="New chat"
         >
           <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -183,7 +186,7 @@ const ChatPage = () => {
       </div>
 
       {isGlobalSearchActive && (
-        <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-[#e9edef] bg-white">
+        <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-[#e2e8f0] bg-white">
               {visibleGlobalSearchResults.length > 0 ? (
                 visibleGlobalSearchResults.map((result) => {
                   const message = result.message;
@@ -202,12 +205,12 @@ const ChatPage = () => {
                           handleFriendSelect(friend.id);
                         }
                       }}
-                      className="block w-full border-b border-[#e9edef] px-3 py-2 text-left last:border-b-0 hover:bg-[#f5f6f6]"
+                      className="block w-full border-b border-[#e2e8f0] px-3 py-2 text-left last:border-b-0 hover:bg-[#eef2ff]"
                     >
-                      <p className="truncate text-sm font-semibold text-[#111b21]">
+                      <p className="truncate text-sm font-semibold text-[#0b0b12]">
                         {friend?.name || "Unknown"}
                       </p>
-                      <p className="mt-0.5 truncate text-xs text-[#667781]">
+                      <p className="mt-0.5 truncate text-xs text-[#64748b]">
                         {isShowingGlobalSearchLoader
                           ? "Searching..."
                           : previewText}
@@ -216,7 +219,7 @@ const ChatPage = () => {
                   );
                 })
               ) : (
-                <p className="px-3 py-3 text-sm text-[#667781]">
+                <p className="px-3 py-3 text-sm text-[#64748b]">
                   {isShowingGlobalSearchLoader
                     ? "Searching..."
                     : "No messages found."}
@@ -228,8 +231,8 @@ const ChatPage = () => {
   );
 
   return (
-    <div className="h-[calc(100vh-4rem)] bg-[#d1d7db] p-0 md:p-4">
-      <div className="mx-auto grid h-full max-w-[1600px] overflow-hidden bg-white shadow-2xl md:rounded-md lg:grid-cols-[26rem_minmax(0,1fr)]">
+    <div className="h-[calc(100vh-4rem)] bg-[#eef2ff] p-0 md:p-4">
+      <div className="mx-auto grid h-full max-w-[1600px] overflow-hidden bg-white shadow-2xl md:rounded-2xl lg:grid-cols-[26rem_minmax(0,1fr)]">
           <div className={`${friendId ? "hidden lg:flex" : "flex"} min-h-0`}>
             <Contacts
               friends={friends}
@@ -253,9 +256,9 @@ const ChatPage = () => {
                 refreshMessages={() => refreshMessages(friendId)}
               />
             ) : (
-              <div className="flex h-full items-center justify-center border-b-4 border-[#00a884] bg-[#f0f2f5] p-8 text-center">
+              <div className="flex h-full items-center justify-center border-b-4 border-[#6d28d9] bg-[#eef2ff] p-8 text-center">
                 <div className="max-w-lg">
-                  <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#d9fdd3] text-[#008069]">
+                  <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#fce7f3] text-[#be185d]">
                     <svg
                       className="h-10 w-10"
                       fill="none"
@@ -270,10 +273,10 @@ const ChatPage = () => {
                       />
                     </svg>
                   </div>
-                  <h2 className="mt-6 text-3xl font-light text-[#41525d]">
+                  <h2 className="mt-6 text-3xl font-light text-[#1f2937]">
                     Multilingual Chat
                   </h2>
-                  <p className="mt-3 text-sm leading-7 text-[#667781]">
+                  <p className="mt-3 text-sm leading-7 text-[#475569]">
                     Select a chat to send translated text, voice, media, and
                     quick replies in a WhatsApp-style workspace.
                   </p>

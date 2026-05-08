@@ -26,12 +26,17 @@ app.use(cookieParser());
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 500,
+  max: 1200,
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-app.use("/mlc", apiLimiter);
+app.use("/mlc", (req, res, next) => {
+  if (req.path === "/user/preferences") {
+    return next();
+  }
+  return apiLimiter(req, res, next);
+});
 
 dotenv.config();
 connectDB();

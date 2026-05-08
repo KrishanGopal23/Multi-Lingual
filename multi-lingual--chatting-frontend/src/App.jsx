@@ -8,6 +8,7 @@ import Home from "./pages/Home.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import AddFriends from "./pages/AddFriends.jsx";
 import Settings from "./pages/Settings.jsx";
+import About from "./pages/About.jsx";
 
 const App = () => {
   return (
@@ -17,6 +18,7 @@ const App = () => {
         <Route path="/" element={<Home />}></Route>
         <Route path="/login" element={<LoginPage />}></Route>
         <Route path="/register" element={<RegisterPage />}></Route>
+        <Route path="/about" element={<About />}></Route>
 
         <Route
           path="/Chat"

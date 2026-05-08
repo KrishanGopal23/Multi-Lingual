@@ -1009,14 +1009,14 @@ const Chat = ({
   };
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#efeae2]">
-      <div className="shrink-0 border-l border-[#d1d7db] bg-[#f0f2f5] px-3 py-2.5 sm:px-4">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f5f3ff]">
+      <div className="shrink-0 border-l border-[#e2e8f0] bg-[#eef2ff] px-3 py-2.5 sm:px-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={onBack}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#54656f] transition hover:bg-[#e2e6e8] lg:hidden"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#475569] transition hover:bg-[#e0e7ff] lg:hidden"
               aria-label="Back to contacts"
             >
               <svg
@@ -1034,18 +1034,18 @@ const Chat = ({
               </svg>
             </button>
 
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#dfe5e7] text-sm font-extrabold text-[#54656f]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e2e8f0] text-sm font-extrabold text-[#475569]">
               {getInitials(friend?.name)}
             </div>
 
             <div className="min-w-0">
-              <h2 className="truncate text-base font-semibold text-[#111b21]">
+              <h2 className="truncate text-base font-semibold text-[#0b0b12]">
                 {friend?.name || "Chat"}
               </h2>
-              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs font-medium text-[#667781]">
+              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs font-medium text-[#64748b]">
                 <span
                   className={`h-2 w-2 rounded-full ${
-                    presenceInfo.isOnline ? "bg-[#00a884]" : "bg-[#8696a0]"
+                    presenceInfo.isOnline ? "bg-[#2563eb]" : "bg-[#94a3b8]"
                   }`}
                 />
                 <span>
@@ -1054,12 +1054,12 @@ const Chat = ({
                     : formatLastSeen(presenceInfo.lastSeen)}
                 </span>
                 {isFriendTyping && (
-                  <span className="font-medium text-[#008069]">
+                  <span className="font-medium text-[#6d28d9]">
                     Typing...
                   </span>
                 )}
                 {isChatMuted && (
-                  <span className="text-[#667781]">
+                  <span className="text-[#64748b]">
                     Muted
                   </span>
                 )}
@@ -1067,8 +1067,8 @@ const Chat = ({
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1 text-[#54656f]">
-            <span className="hidden max-w-[15rem] truncate rounded-full bg-white/70 px-3 py-1.5 text-xs font-medium text-[#54656f] xl:inline">
+          <div className="flex shrink-0 items-center gap-1 text-[#475569]">
+            <span className="hidden max-w-[15rem] truncate rounded-full bg-white/80 px-3 py-1.5 text-xs font-medium text-[#475569] xl:inline">
               {receiverLanguageLabel} / {outgoingModeLabel}
             </span>
               <button
@@ -1085,10 +1085,10 @@ const Chat = ({
                   );
                   setIsChatMuted(!isChatMuted);
                 }}
-                className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-[#e2e6e8] ${
+                className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-[#e0e7ff] ${
                   isChatMuted
-                    ? "text-[#008069]"
-                    : "text-[#54656f]"
+                    ? "text-[#6d28d9]"
+                    : "text-[#475569]"
                 }`}
                 title={isChatMuted ? "Unmute chat" : "Mute chat"}
               >
@@ -1098,7 +1098,7 @@ const Chat = ({
               </button>
             <button
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-[#e2e6e8]"
+              className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-[#e0e7ff]"
               title="Conversation details"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1109,7 +1109,7 @@ const Chat = ({
         </div>
       </div>
 
-      <div className="wa-chat-wallpaper flex-1 overflow-y-auto border-l border-[#d1d7db] px-3 py-5 sm:px-8">
+      <div className="wa-chat-wallpaper flex-1 overflow-y-auto border-l border-[#e2e8f0] px-3 py-5 sm:px-8">
         <ul className="flex flex-col gap-1.5">
           {searchableMessages && searchableMessages.length > 0 ? (
             searchableMessages.map((chatMessage) => {
@@ -1186,10 +1186,10 @@ const Chat = ({
                   className={`flex py-0.5 ${isIncoming ? "justify-start" : "justify-end"}`}
                 >
                   <article
-                    className={`group relative max-w-[88%] rounded-lg px-2.5 py-1.5 text-[#111b21] shadow-sm sm:max-w-[62%] ${
+                    className={`group relative max-w-[88%] rounded-lg px-2.5 py-1.5 text-[#0b0b12] shadow-sm sm:max-w-[62%] ${
                       isIncoming
                         ? "rounded-tl-none bg-white"
-                        : "rounded-tr-none bg-[#d9fdd3]"
+                        : "rounded-tr-none bg-[#fce7f3]"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -1211,8 +1211,8 @@ const Chat = ({
                           <div
                             className={`mb-2 rounded-md border-l-4 px-3 py-2 text-xs leading-5 ${
                               isIncoming
-                                ? "border-[#00a884] bg-[#f0f2f5] text-[#54656f]"
-                                : "border-[#00a884] bg-[#cfeec8] text-[#54656f]"
+                                ? "border-[#6366f1] bg-[#eef2ff] text-[#475569]"
+                                : "border-[#be185d] bg-[#fce7f3] text-[#475569]"
                             }`}
                           >
                             <span className="font-semibold">
@@ -1270,11 +1270,11 @@ const Chat = ({
                                   href={attachment.url}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className={`block rounded-lg px-3 py-2 text-sm font-semibold ${
-                                    isIncoming
-                                      ? "bg-[#f0f2f5] text-[#111b21]"
-                                      : "bg-[#cfeec8] text-[#111b21]"
-                                  }`}
+                                    className={`block rounded-lg px-3 py-2 text-sm font-semibold ${
+                                      isIncoming
+                                        ? "bg-[#eef2ff] text-[#0b0b12]"
+                                        : "bg-[#fce7f3] text-[#0b0b12]"
+                                    }`}
                                 >
                                   {attachment.file_name || "Download file"}
                                 </a>
@@ -1286,7 +1286,7 @@ const Chat = ({
                         {(chatMessage.forwarded_from || chatMessage.forwarded_from === 0) && (
                           <p
                             className={`mt-3 text-[11px] font-semibold uppercase tracking-[0.2em] ${
-                              isIncoming ? "text-[#8696a0]" : "text-[#667781]"
+                              isIncoming ? "text-[#94a3b8]" : "text-[#64748b]"
                             }`}
                           >
                             Forwarded
@@ -1315,8 +1315,8 @@ const Chat = ({
                         disabled={!speechPlaybackSupported || isDeletedForAll || !displayText}
                         className={`-mr-1 -mt-1 shrink-0 rounded-full p-1 opacity-0 transition-all group-hover:opacity-100 group-focus-within:opacity-100 ${
                           isIncoming
-                            ? "text-[#54656f] hover:bg-[#f0f2f5]"
-                            : "text-[#54656f] hover:bg-[#cfeec8]"
+                            ? "text-[#475569] hover:bg-[#eef2ff]"
+                            : "text-[#475569] hover:bg-[#fce7f3]"
                         } ${
                           !speechPlaybackSupported || isDeletedForAll
                             ? "cursor-not-allowed opacity-40"
@@ -1346,14 +1346,14 @@ const Chat = ({
 
                     {!isDeletedForAll && !chatMessage.isLocal && (
                       <div
-                        className={`absolute bottom-full z-20 mb-1 flex items-center gap-1 rounded-full bg-white/95 px-1.5 py-1 text-[#54656f] shadow-lg ring-1 ring-black/5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 ${
+                        className={`absolute bottom-full z-20 mb-1 flex items-center gap-1 rounded-full bg-white/95 px-1.5 py-1 text-[#475569] shadow-lg ring-1 ring-black/5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 ${
                           isIncoming ? "left-1" : "right-1"
                         }`}
                       >
                         <button
                           type="button"
                           onClick={() => handleStartReply(chatMessage, displayText)}
-                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#f0f2f5]"
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#eef2ff]"
                         >
                           Reply
                         </button>
@@ -1361,7 +1361,7 @@ const Chat = ({
                           <button
                             type="button"
                             onClick={() => handleStartEdit(chatMessage, displayText)}
-                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#f0f2f5]"
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#eef2ff]"
                           >
                             Edit
                           </button>
@@ -1369,7 +1369,7 @@ const Chat = ({
                         <button
                           type="button"
                           onClick={() => handleForward(chatMessage)}
-                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#f0f2f5]"
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#eef2ff]"
                         >
                           Forward
                         </button>
@@ -1382,14 +1382,14 @@ const Chat = ({
                               : chatMessage._id,
                             )
                           }
-                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#f0f2f5]"
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#eef2ff]"
                         >
                           {userReaction?.emoji || "React"}
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDelete(chatMessage, "me")}
-                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#f0f2f5]"
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#eef2ff]"
                         >
                           Delete
                         </button>
@@ -1397,7 +1397,7 @@ const Chat = ({
                           <button
                             type="button"
                             onClick={() => handleDelete(chatMessage, "everyone")}
-                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#f0f2f5]"
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold hover:bg-[#eef2ff]"
                           >
                             Delete all
                           </button>
@@ -1418,8 +1418,8 @@ const Chat = ({
                             onClick={() => handleReaction(chatMessage, emoji)}
                             className={`flex h-7 w-7 items-center justify-center rounded-full text-sm transition-all ${
                               userReaction?.emoji === emoji
-                                ? "bg-[#00a884] text-white"
-                                : "text-[#111b21] hover:bg-[#f0f2f5]"
+                                ? "bg-[#6d28d9] text-white"
+                                : "text-[#0b0b12] hover:bg-[#eef2ff]"
                             }`}
                           >
                             {emoji}
@@ -1430,13 +1430,13 @@ const Chat = ({
 
                     <div
                       className={`mt-0.5 flex flex-wrap items-center justify-end gap-1.5 text-[10.5px] font-medium ${
-                        isIncoming ? "text-[#8696a0]" : "text-[#667781]"
+                        isIncoming ? "text-[#94a3b8]" : "text-[#64748b]"
                       }`}
                     >
                       {Object.entries(reactionCounts).map(([emoji, count]) => (
                         <span
                           key={`${chatMessage._id}-${emoji}`}
-                          className="rounded-full bg-white/55 px-1.5 py-0.5 text-[10px] leading-none text-[#54656f]"
+                          className="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] leading-none text-[#475569]"
                         >
                           {emoji} {count}
                         </span>
@@ -1449,7 +1449,7 @@ const Chat = ({
                           className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                             statusValue === "failed"
                               ? "bg-red-100 text-red-600"
-                              : "text-[#667781]"
+                              : "text-[#64748b]"
                           }`}
                         >
                           {statusLabel}
@@ -1475,10 +1475,10 @@ const Chat = ({
           ) : (
             <div className="flex h-full items-center justify-center px-6 py-16 text-center">
               <div className="max-w-md">
-                <p className="text-xl font-semibold text-[#111b21]">
+                <p className="text-xl font-semibold text-[#0b0b12]">
                   No messages yet
                 </p>
-                <p className="mt-3 text-sm leading-7 text-[#667781]">
+                <p className="mt-3 text-sm leading-7 text-[#475569]">
                   {`Send your first message in ${senderLanguageLabel}. The receiver will get it translated into ${receiverLanguageLabel} with ${outgoingModeLabel.toLowerCase()} delivery.`}
                 </p>
               </div>
@@ -1489,7 +1489,7 @@ const Chat = ({
       </div>
 
       <form
-        className="shrink-0 border-l border-[#d1d7db] bg-[#f0f2f5] px-3 py-2"
+        className="shrink-0 border-l border-[#e2e8f0] bg-[#eef2ff] px-3 py-2"
         onSubmit={(event) => {
           event.preventDefault();
           if (editingMessage) {
@@ -1509,18 +1509,18 @@ const Chat = ({
         }}
       >
         {(replyToMessage || editingMessage) && (
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border-l-4 border-[#00a884] bg-white px-3 py-2 text-sm text-[#54656f]">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border-l-4 border-[#6d28d9] bg-white px-3 py-2 text-sm text-[#475569]">
             <div>
               {editingMessage ? (
-                <span className="font-semibold text-[#111b21]">
+                <span className="font-semibold text-[#0b0b12]">
                   Editing message
                 </span>
               ) : (
-                <span className="font-semibold text-[#111b21]">
+                <span className="font-semibold text-[#0b0b12]">
                   Replying to {replyToMessage?.sender}
                 </span>
               )}
-              <p className="mt-1 text-xs text-[#667781]">
+              <p className="mt-1 text-xs text-[#64748b]">
                 {editingMessage ? editingMessage.text : replyToMessage?.text}
               </p>
             </div>
@@ -1531,7 +1531,7 @@ const Chat = ({
                 setEditingMessage(null);
                 setMessage("");
               }}
-              className="rounded-full bg-[#f0f2f5] px-3 py-1 text-xs font-semibold text-[#54656f]"
+              className="rounded-full bg-[#eef2ff] px-3 py-1 text-xs font-semibold text-[#475569]"
             >
               Cancel
             </button>
@@ -1540,7 +1540,7 @@ const Chat = ({
         {(voicePreview || speechError) && (
           <div className="mb-2 space-y-2">
             {voicePreview && (
-              <div className="rounded-lg bg-[#d9fdd3] px-3 py-2 text-sm font-medium text-[#111b21]">
+              <div className="rounded-lg bg-[#fce7f3] px-3 py-2 text-sm font-medium text-[#0b0b12]">
                 Voice preview: {voicePreview}
               </div>
             )}
@@ -1559,7 +1559,7 @@ const Chat = ({
                 key={`${item.file.name}-${item.file.size}`}
                 className="flex items-center gap-2 rounded-lg bg-white px-2 py-1.5"
               >
-                <div className="h-8 w-8 overflow-hidden rounded-lg bg-[#f0f2f5]">
+                <div className="h-8 w-8 overflow-hidden rounded-lg bg-[#eef2ff]">
                   {item.file.type.startsWith("image/") ? (
                     <img
                       src={item.preview}
@@ -1567,7 +1567,7 @@ const Chat = ({
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-[#54656f]">
+                    <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-[#475569]">
                       {item.file.type.startsWith("video/")
                         ? "VID"
                         : item.file.type.startsWith("audio/")
@@ -1576,9 +1576,9 @@ const Chat = ({
                     </div>
                   )}
                 </div>
-                <div className="text-xs font-semibold text-[#54656f]">
+                <div className="text-xs font-semibold text-[#475569]">
                   <p className="max-w-[160px] truncate">{item.file.name}</p>
-                  <p className="text-[11px] text-[#8696a0]">
+                  <p className="text-[11px] text-[#94a3b8]">
                     {(item.file.size / 1024).toFixed(1)} KB
                   </p>
                 </div>
@@ -1591,7 +1591,7 @@ const Chat = ({
                       return next;
                     })
                   }
-                  className="rounded-full bg-[#f0f2f5] px-2 py-1 text-[11px] font-semibold text-[#54656f]"
+                  className="rounded-full bg-[#eef2ff] px-2 py-1 text-[11px] font-semibold text-[#475569]"
                 >
                   Remove
                 </button>
@@ -1619,7 +1619,7 @@ const Chat = ({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#54656f] transition hover:bg-[#e2e6e8]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#475569] transition hover:bg-[#e0e7ff]"
             title="Attach files"
           >
             <svg
@@ -1643,7 +1643,7 @@ const Chat = ({
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
               isRecording
                 ? "bg-[#dc3545] text-white"
-                : "text-[#54656f] hover:bg-[#e2e6e8]"
+                : "text-[#475569] hover:bg-[#e0e7ff]"
             } ${
               !voiceInputSupported || isSending
                 ? "cursor-not-allowed opacity-50"
@@ -1688,7 +1688,7 @@ const Chat = ({
                     ? "Edit your message"
                     : "Message"
               }
-              className="w-full bg-transparent px-3 py-2 text-sm text-[#111b21] outline-none placeholder:text-[#667781]"
+              className="w-full bg-transparent px-3 py-2 text-sm text-[#0b0b12] outline-none placeholder:text-[#64748b]"
               value={message}
               onChange={(event) => {
                 const nextValue = event.target.value;
@@ -1724,7 +1724,7 @@ const Chat = ({
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition ${
               isSending
                 ? "cursor-not-allowed bg-[#8696a0]"
-                : "bg-[#00a884] hover:bg-[#008069]"
+                : "bg-[#2563eb] hover:bg-[#1d4ed8]"
             }`}
           >
             <svg
