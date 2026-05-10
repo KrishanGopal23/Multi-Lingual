@@ -274,7 +274,7 @@ const ChatPage = () => {
                     </svg>
                   </div>
                   <h2 className="mt-6 text-3xl font-light text-[#1f2937]">
-                    Multilingual Chat
+                    Molta Multilingual Chat
                   </h2>
                   <p className="mt-3 text-sm leading-7 text-[#475569]">
                     Select a chat to send translated text, voice, media, and

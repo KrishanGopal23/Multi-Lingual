@@ -1,7 +1,7 @@
 import axios from "axios";
 
-const url = "http://localhost:5000/mlc";
-// const url = import.meta.env.VITE_API_URL;
+// const url = "http://localhost:5000/mlc";
+const url = import.meta.env.VITE_API_URL;
 
 const api = axios.create({
   baseURL: url, // Adjust the base URL as needed

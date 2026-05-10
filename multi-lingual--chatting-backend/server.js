@@ -7,7 +7,11 @@ import path from "path";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import http from "http";
+import { Server } from "socket.io";
 
+
+dotenv.config();
 
 // app initialization
 const app = express();
@@ -38,7 +42,6 @@ app.use("/mlc", (req, res, next) => {
   return apiLimiter(req, res, next);
 });
 
-dotenv.config();
 connectDB();
 
 app.use(express.json({ limit: "25mb" }));
@@ -65,8 +68,63 @@ app.use("/mlc/chat/", chat);
 import speech from "./modules/speech/speechRoutes.js";
 app.use("/mlc/speech/", speech);
 
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigin,
+    credentials: true,
+  },
+});
+
+const userSockets = new Map();
+
+io.on("connection", (socket) => {
+  socket.on("auth", ({ userId }) => {
+    if (!userId) {
+      return;
+    }
+    userSockets.set(userId, socket.id);
+    socket.data.userId = userId;
+  });
+
+  socket.on("call:offer", ({ to, from, sdp, mediaType }) => {
+    const targetSocket = userSockets.get(to);
+    if (targetSocket) {
+      io.to(targetSocket).emit("call:offer", { from, sdp, mediaType });
+    }
+  });
+
+  socket.on("call:answer", ({ to, from, sdp }) => {
+    const targetSocket = userSockets.get(to);
+    if (targetSocket) {
+      io.to(targetSocket).emit("call:answer", { from, sdp });
+    }
+  });
+
+  socket.on("call:ice", ({ to, from, candidate }) => {
+    const targetSocket = userSockets.get(to);
+    if (targetSocket) {
+      io.to(targetSocket).emit("call:ice", { from, candidate });
+    }
+  });
+
+  socket.on("call:end", ({ to, from, reason }) => {
+    const targetSocket = userSockets.get(to);
+    if (targetSocket) {
+      io.to(targetSocket).emit("call:end", { from, reason });
+    }
+  });
+
+  socket.on("disconnect", () => {
+    const userId = socket.data?.userId;
+    if (userId && userSockets.get(userId) === socket.id) {
+      userSockets.delete(userId);
+    }
+  });
+});
+
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`);
 });

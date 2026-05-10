@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { io } from "socket.io-client";
 import {
   deleteMessage,
   editMessage,
@@ -73,6 +74,15 @@ const readPreferencesUpdatedAt = () => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const resolveSocketUrl = () => {
+  const apiBase = import.meta.env.VITE_API_URL || "";
+  if (!apiBase) {
+    return "http://localhost:5000";
+  }
+
+  return apiBase.replace(/\/mlc\/?$/, "");
+};
+
 const Chat = ({
   messages,
   friendId,
@@ -98,6 +108,14 @@ const Chat = ({
   const [openReactionFor, setOpenReactionFor] = useState(null);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [isChatMuted, setIsChatMuted] = useState(false);
+  const [callState, setCallState] = useState({
+    status: "idle",
+    type: null,
+    peerId: null,
+    direction: null,
+  });
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
   const [, setOfflineQueue] = useState(readQueuedMessagesFromStorage);
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
   const messagesEndRef = useRef(null);
@@ -110,6 +128,14 @@ const Chat = ({
   const hasInitializedConversationRef = useRef(false);
   const typingTimeoutRef = useRef(null);
   const preferencesUpdatedAt = useMemo(() => readPreferencesUpdatedAt(), []);
+  const socketRef = useRef(null);
+  const peerRef = useRef(null);
+  const localStreamRef = useRef(null);
+  const remoteStreamRef = useRef(null);
+  const pendingOfferRef = useRef(null);
+  const callStateRef = useRef(callState);
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
 
   const preferredLanguage = currentUserProfile?.preferred_language || "en";
   const preferredMode = currentUserProfile?.preferred_mode || "Text";
@@ -128,6 +154,11 @@ const Chat = ({
   const outgoingModeLabel = getModeLabel(friendMode);
   const currentUserId = currentUserProfile?._id || currentUserProfile?.id || "me";
   const quickReactions = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+  const isCallActive = callState.status !== "idle";
+
+  useEffect(() => {
+    callStateRef.current = callState;
+  }, [callState]);
 
   const displayMessages = [
     ...messages,
@@ -213,6 +244,280 @@ const Chat = ({
       console.error("Background sync registration failed:", error);
     }
   };
+
+  const stopLocalCallStream = useCallback(() => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
+    }
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+  }, []);
+
+  const stopRemoteCallStream = useCallback(() => {
+    if (remoteStreamRef.current) {
+      remoteStreamRef.current.getTracks().forEach((track) => track.stop());
+      remoteStreamRef.current = null;
+    }
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
+  }, []);
+
+  const resetCallState = useCallback(() => {
+    setCallState({ status: "idle", type: null, peerId: null, direction: null });
+    setIsMuted(false);
+    setIsVideoOff(false);
+    pendingOfferRef.current = null;
+  }, []);
+
+  const closePeerConnection = useCallback(() => {
+    if (peerRef.current) {
+      peerRef.current.ontrack = null;
+      peerRef.current.onicecandidate = null;
+      peerRef.current.onconnectionstatechange = null;
+      peerRef.current.close();
+      peerRef.current = null;
+    }
+  }, []);
+
+  const cleanupCall = useCallback(() => {
+    closePeerConnection();
+    stopLocalCallStream();
+    stopRemoteCallStream();
+    resetCallState();
+  }, [closePeerConnection, resetCallState, stopLocalCallStream, stopRemoteCallStream]);
+
+  const ensurePeerConnection = useCallback(
+    (targetId) => {
+      const peer = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      });
+
+      peer.onicecandidate = (event) => {
+        if (event.candidate && socketRef.current && targetId) {
+          socketRef.current.emit("call:ice", {
+            to: targetId,
+            from: currentUserId,
+            candidate: event.candidate,
+          });
+        }
+      };
+
+      peer.ontrack = (event) => {
+        const [stream] = event.streams;
+        if (stream) {
+          remoteStreamRef.current = stream;
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = stream;
+          }
+        }
+      };
+
+      peer.onconnectionstatechange = () => {
+        const state = peer.connectionState;
+        if (state === "failed" || state === "disconnected" || state === "closed") {
+          cleanupCall();
+        }
+      };
+
+      peerRef.current = peer;
+      return peer;
+    },
+    [cleanupCall, currentUserId],
+  );
+
+  const attachLocalStream = useCallback((stream, peer) => {
+    localStreamRef.current = stream;
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = stream;
+    }
+    stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+  }, []);
+
+  const endCall = useCallback(
+    (reason = "ended", notify = true) => {
+      const peerId = callStateRef.current.peerId;
+      if (notify && socketRef.current && peerId) {
+        socketRef.current.emit("call:end", {
+          to: peerId,
+          from: currentUserId,
+          reason,
+        });
+      }
+      cleanupCall();
+    },
+    [cleanupCall, currentUserId],
+  );
+
+  useEffect(() => {
+    if (!currentUserId || currentUserId === "me") {
+      return undefined;
+    }
+
+    const socket = io(resolveSocketUrl(), {
+      transports: ["websocket"],
+      withCredentials: true,
+    });
+    socketRef.current = socket;
+    socket.emit("auth", { userId: currentUserId });
+
+    socket.on("call:offer", ({ from, sdp, mediaType }) => {
+      if (callStateRef.current.status !== "idle") {
+        socket.emit("call:end", {
+          to: from,
+          from: currentUserId,
+          reason: "busy",
+        });
+        return;
+      }
+      pendingOfferRef.current = { from, sdp, mediaType };
+      setCallState({
+        status: "incoming",
+        type: mediaType,
+        peerId: from,
+        direction: "incoming",
+      });
+    });
+
+    socket.on("call:answer", async ({ sdp }) => {
+      try {
+        if (peerRef.current) {
+          await peerRef.current.setRemoteDescription(sdp);
+          setCallState((current) =>
+            current.status === "calling"
+              ? { ...current, status: "in-call" }
+              : current,
+          );
+        }
+      } catch (error) {
+        console.error("Failed to apply call answer:", error);
+        cleanupCall();
+      }
+    });
+
+    socket.on("call:ice", async ({ candidate }) => {
+      try {
+        if (peerRef.current && candidate) {
+          await peerRef.current.addIceCandidate(candidate);
+        }
+      } catch (error) {
+        console.error("Failed to add ICE candidate:", error);
+      }
+    });
+
+    socket.on("call:end", ({ reason }) => {
+      console.log("Call ended:", reason || "unknown");
+      endCall(reason || "ended", false);
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [cleanupCall, currentUserId, endCall]);
+
+  const startOutgoingCall = useCallback(
+    async (mediaType) => {
+      if (!friendId || callStateRef.current.status !== "idle") {
+        return;
+      }
+      try {
+        setCallState({
+          status: "calling",
+          type: mediaType,
+          peerId: friendId,
+          direction: "outgoing",
+        });
+        const peer = ensurePeerConnection(friendId);
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: mediaType === "video",
+        });
+        attachLocalStream(stream, peer);
+
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        socketRef.current?.emit("call:offer", {
+          to: friendId,
+          from: currentUserId,
+          sdp: offer,
+          mediaType,
+        });
+      } catch (error) {
+        console.error("Failed to start call:", error);
+        cleanupCall();
+      }
+    },
+    [attachLocalStream, cleanupCall, currentUserId, ensurePeerConnection, friendId],
+  );
+
+  const acceptIncomingCall = useCallback(async () => {
+    const offer = pendingOfferRef.current;
+    if (!offer) {
+      return;
+    }
+    try {
+      setCallState({
+        status: "in-call",
+        type: offer.mediaType,
+        peerId: offer.from,
+        direction: "incoming",
+      });
+      const peer = ensurePeerConnection(offer.from);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: offer.mediaType === "video",
+      });
+      attachLocalStream(stream, peer);
+
+      await peer.setRemoteDescription(offer.sdp);
+      const answer = await peer.createAnswer();
+      await peer.setLocalDescription(answer);
+      socketRef.current?.emit("call:answer", {
+        to: offer.from,
+        from: currentUserId,
+        sdp: answer,
+      });
+      pendingOfferRef.current = null;
+    } catch (error) {
+      console.error("Failed to accept call:", error);
+      endCall("accept_failed", true);
+    }
+  }, [attachLocalStream, currentUserId, endCall, ensurePeerConnection]);
+
+  const declineIncomingCall = useCallback(() => {
+    const offer = pendingOfferRef.current;
+    if (offer && socketRef.current) {
+      socketRef.current.emit("call:end", {
+        to: offer.from,
+        from: currentUserId,
+        reason: "declined",
+      });
+    }
+    cleanupCall();
+  }, [cleanupCall, currentUserId]);
+
+  const toggleMute = useCallback(() => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    const nextMuted = !isMuted;
+    stream.getAudioTracks().forEach((track) => {
+      track.enabled = !nextMuted;
+    });
+    setIsMuted(nextMuted);
+  }, [isMuted]);
+
+  const toggleVideo = useCallback(() => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    const nextOff = !isVideoOff;
+    stream.getVideoTracks().forEach((track) => {
+      track.enabled = !nextOff;
+    });
+    setIsVideoOff(nextOff);
+  }, [isVideoOff]);
 
   const cleanupMediaStream = () => {
     if (mediaStreamRef.current) {
@@ -807,6 +1112,14 @@ const Chat = ({
   }, [friendId, processQueue]);
 
   useEffect(() => {
+    return () => {
+      if (callStateRef.current.status !== "idle") {
+        endCall("left_chat", true);
+      }
+    };
+  }, [endCall, friendId]);
+
+  useEffect(() => {
     if (!friendId) {
       return;
     }
@@ -1009,7 +1322,7 @@ const Chat = ({
   };
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f5f3ff]">
+    <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f5f3ff]">
       <div className="shrink-0 border-l border-[#e2e8f0] bg-[#eef2ff] px-3 py-2.5 sm:px-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -1071,6 +1384,36 @@ const Chat = ({
             <span className="hidden max-w-[15rem] truncate rounded-full bg-white/80 px-3 py-1.5 text-xs font-medium text-[#475569] xl:inline">
               {receiverLanguageLabel} / {outgoingModeLabel}
             </span>
+            <button
+              type="button"
+              onClick={() => startOutgoingCall("audio")}
+              disabled={!friendId || isCallActive}
+              className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-[#e0e7ff] ${
+                !friendId || isCallActive
+                  ? "cursor-not-allowed text-[#94a3b8]"
+                  : "text-[#475569]"
+              }`}
+              title="Start voice call"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H7a11 11 0 005 5v-2a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-1C8.82 21 3 15.18 3 8V5z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => startOutgoingCall("video")}
+              disabled={!friendId || isCallActive}
+              className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-[#e0e7ff] ${
+                !friendId || isCallActive
+                  ? "cursor-not-allowed text-[#94a3b8]"
+                  : "text-[#475569]"
+              }`}
+              title="Start video call"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14m0 0v4a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v8z" />
+              </svg>
+            </button>
               <button
                 type="button"
                 onClick={() => {
@@ -1108,6 +1451,97 @@ const Chat = ({
           </div>
         </div>
       </div>
+
+      {callState.status !== "idle" && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6d28d9]">
+                  {callState.status === "incoming"
+                    ? "Incoming call"
+                    : callState.status === "calling"
+                      ? "Calling"
+                      : "In call"}
+                </p>
+                <h3 className="mt-2 text-2xl font-semibold text-[#0b0b12]">
+                  {friend?.name || "Contact"}
+                </h3>
+                <p className="mt-1 text-sm text-[#64748b]">
+                  {callState.type === "video" ? "Video call" : "Voice call"}
+                </p>
+              </div>
+              {callState.status === "incoming" && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={declineIncomingCall}
+                    className="rounded-full bg-[#ef4444] px-4 py-2 text-sm font-semibold text-white shadow-lg"
+                  >
+                    Decline
+                  </button>
+                  <button
+                    type="button"
+                    onClick={acceptIncomingCall}
+                    className="rounded-full bg-gradient-to-r from-[#2563eb] via-[#6d28d9] to-[#be185d] px-4 py-2 text-sm font-semibold text-white shadow-lg"
+                  >
+                    Accept
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {callState.type === "video" && (
+              <div className="mt-6 grid gap-3 rounded-2xl bg-[#0b0b12] p-3 md:grid-cols-[1fr_0.45fr]">
+                <video
+                  ref={remoteVideoRef}
+                  className="h-56 w-full rounded-xl bg-black object-cover"
+                  autoPlay
+                  playsInline
+                />
+                <video
+                  ref={localVideoRef}
+                  className="h-56 w-full rounded-xl bg-black object-cover"
+                  autoPlay
+                  playsInline
+                  muted
+                />
+              </div>
+            )}
+
+            {callState.status !== "incoming" && (
+              <div className="mt-6 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  className="rounded-full bg-[#eef2ff] px-4 py-2 text-sm font-semibold text-[#1e3a8a]"
+                >
+                  {isMuted ? "Unmute" : "Mute"}
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleVideo}
+                  disabled={callState.type !== "video"}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                    callState.type !== "video"
+                      ? "cursor-not-allowed bg-[#e2e8f0] text-[#94a3b8]"
+                      : "bg-[#fce7f3] text-[#be185d]"
+                  }`}
+                >
+                  {isVideoOff ? "Video on" : "Video off"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => endCall("ended", true)}
+                  className="rounded-full bg-[#ef4444] px-4 py-2 text-sm font-semibold text-white shadow-lg"
+                >
+                  End call
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="wa-chat-wallpaper flex-1 overflow-y-auto border-l border-[#e2e8f0] px-3 py-5 sm:px-8">
         <ul className="flex flex-col gap-1.5">

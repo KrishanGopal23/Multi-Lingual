@@ -32,7 +32,7 @@ const About = () => {
             About Us
           </p>
           <h1 className="mt-3 text-4xl font-light text-[#0b0b12]">
-            Multilingual chat that feels natural
+            Molta multilingual chat that feels natural
           </h1>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-[#475569]">
             This project helps people communicate across languages with clear

@@ -50,7 +50,7 @@ export async function speechToText(
   mimeType = "audio/webm",
   fileName = "voice-message.webm"
 ) {
-  const attempts = ["file", "audio"];
+  const attempts = ["audio_file", "file", "audio"];
   const errors = [];
 
   for (const fieldName of attempts) {

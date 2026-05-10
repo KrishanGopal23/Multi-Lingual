@@ -108,7 +108,7 @@ const AddFriends = () => {
                           {user.name || "Unknown"}
                         </h3>
                         <p className="mt-2 text-sm text-[#64748b]">
-                          Ready for multilingual chat delivery
+                          Ready for Molta multilingual chat delivery
                         </p>
                       </div>
                     </div>

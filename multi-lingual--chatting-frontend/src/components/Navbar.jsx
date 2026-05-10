@@ -32,12 +32,15 @@ const Navbar = () => {
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15 shadow-[0_10px_25px_rgba(30,64,175,0.35)] ring-1 ring-white/25 transition group-hover:-translate-y-0.5 group-hover:bg-white/20">
             <img
               src="/logo.png"
-              alt="Multilingual Chat logo"
+              alt="Molta Multilingual Chat logo"
               className="h-8 w-8 rounded-xl object-contain"
             />
           </div>
           <div>
-            <p className="text-base font-extrabold text-white">
+            <p className="text-lg font-extrabold center text-white">
+              Molta
+            </p>
+            <p className="text-base font-bold text-white">
               MultiLingual Chat
             </p>
           </div>
