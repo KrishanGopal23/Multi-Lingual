@@ -1,4 +1,4 @@
-# Multi-Lingual Chatting
+# Molta Multilingual Chat
 
 Real-time chat application that translates messages and supports text and audio delivery based on each user's preferences.
 
@@ -8,10 +8,13 @@ Real-time chat application that translates messages and supports text and audio 
 - One-to-one chats with translated messages
 - Text and audio delivery modes per user
 - Speech-to-text for voice input and text-to-speech playback
+- Voice and video calls with WebRTC + Socket.io signaling
 - Online presence and typing indicators
 - Media attachments (image, video, audio, files)
 - Message actions: reply, edit, delete, forward, react
 - Multilingual toggle for faster original-language chats
+- Settings page for language/mode preferences that apply to new messages only
+- About page and refreshed branded UI with updated theme
 
 ## Tech Stack
 
